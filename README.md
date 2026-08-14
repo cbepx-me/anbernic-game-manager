@@ -44,7 +44,7 @@ Easily manage your ROMs, scrape box art, backup/restore save data, upload game g
    ```bash
     python3 -m pip install -r requirements.txt
    ```
-|   Note: The script will attempt to auto‑install missing modules on first run.
+> Note: The script will attempt to auto‑install missing modules on first run.
 
 3. **Configure ScreenScraper** (optional but recommended):
     Copy `config.json` and fill in your ScreenScraper credentials:
@@ -71,7 +71,7 @@ Easily manage your ROMs, scrape box art, backup/restore save data, upload game g
 
     (You can find the IP address on the splash screen.)
 
-|  💡 To stop the server, press the SELECT button on the device or visit `/shutdown` in the browser.
+> 💡 To stop the server, press the SELECT button on the device or visit `/shutdown` in the browser.
 
 ## 🎮 Supported Systems
 
