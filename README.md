@@ -33,6 +33,17 @@ Easily manage your ROMs, scrape box art, backup/restore save data, upload game g
 
 ---
 
+## 🖥️ Supported Devices & OS
+
+This tool is specifically designed for **all open‑source handheld devices powered by the H700 CPU**, commonly found in recent Anbernic models. It has been tested and verified on:
+
+- **Supported devices** (H700‑based): RG35XX Plus, RG35XX H, RG35XX SP, RG40XX H, RG40XX V, RG CubeXX, and other H700‑based handhelds.
+- **Supported operating systems**: Stock OS (the official firmware) and Stock OS MOD (community‑modified versions based on the original firmware).
+
+> **Note**: While it may work on other Linux‑based handhelds with similar directory structures, full compatibility is only guaranteed on H700 devices running Stock OS or Stock OS MOD.
+
+---
+
 ## 🚀 Installation
 
 1. **Clone the repository** onto your Anbernic device (via SSH or SCP):
@@ -73,10 +84,14 @@ Easily manage your ROMs, scrape box art, backup/restore save data, upload game g
 
 > 💡 To stop the server, press the SELECT button on the device or visit `/shutdown` in the browser.
 
+---
+
 ## 🎮 Supported Systems
 
 The manager recognizes ROMs by file extension. A full list is in `systems.py`.
 Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
+
+---
 
 ## 🛠️ Configuration
 
@@ -86,11 +101,15 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 - `csv/` – Arcade game name mapping (arcade-plus.csv) – edit to customize display names.
 
+---
+
 ## 📂 Backup & Restore
 
 - Backup: Creates a `.tar.gz` archive of all save data directories (PPSSPP, PCSX, RetroArch, Drastic, etc.). The file is downloaded to your computer.
 
 - Restore: Upload a previously downloaded backup file; the system verifies it contains a valid marker before extracting.
+
+---
 
 ## 🖼️ Screenshots
 
@@ -108,19 +127,27 @@ https://screenshots/backup.png
 
 Backup and restore save data with one click.
 
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/cbepx-me/anbernic-game-manager/blob/main/CONTRIBUTING.md) for guidelines.
 
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License – see the [LICENSE](https://github.com/cbepx-me/anbernic-game-manager/blob/main/LICENSE) file for details.
+
+---
 
 ## 🙏 Acknowledgements
 
 - ScreenScraper for the amazing scraping API.
 
 - The Anbernic community for testing and feedback.
+
+---
 
 Author: G.R.H (cbepx-me)
 Project Page: [GitHub](https://github.com/cbepx-me/anbernic-game-manager)
