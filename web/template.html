@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>{{ _('Anbernic game management') }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin:0; font-family: sans-serif; display:flex; height:100vh; background:#1e1e2e; color:#cdd6f4; }
+        #sidebar { width:40%; background:#181825; overflow-y:auto; border-right:2px solid #313244; display:flex; flex-direction:column; }
+        #toolbar { padding:10px; background:#313244; border-bottom:1px solid #45475a; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+        #toolbar select, #toolbar button { background:#45475a; color:#cdd6f4; border:1px solid #585b70; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; }
+        #toolbar button:hover { background:#585b70; }
+        #toolbar .btn-danger { background:#f38ba8; color:#1e1e2e; }
+        #toolbar button:disabled { opacity:0.5; cursor:not-allowed; }
+        #device-info {
+            padding: 4px 12px;
+            background: #313244;
+            border-bottom: 1px solid #45475a;
+            font-size: 0.9em;
+            color: #a6adc8;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        #search-bar { padding:5px 10px 3px 10px; background:#181825; border-bottom:1px solid #313244; }
+        #search-input { width:100%; background:#45475a; color:#cdd6f4; border:1px solid #585b70; padding:6px 12px; border-radius:6px; outline:none; font-size:1rem; }
+        #search-input:focus { border-color:#89b4fa; }
+        #search-input:disabled { opacity:0.5; }
+        #search-result { padding:3px 10px 5px 10px; background:#181825; color:#a6adc8; font-size:0.85em; border-bottom:1px solid #313244; }
+        #game-list { flex:1; overflow-y:auto; padding:5px; }
+        .dir-item, .file-item { padding:10px 12px; cursor:pointer; border-bottom:1px solid #313244; display:flex; justify-content:space-between; align-items:center; min-height:44px; }
+        .dir-item:hover, .file-item:hover { background:#313244; }
+        .dir-item.active, .file-item.active { background:#89b4fa; color:#1e1e2e; }
+        .console-tag { font-size:0.7em; background:#45475a; padding:2px 8px; border-radius:10px; }
+        .file-size { color:#a6adc8; font-size:0.8em; }
+        .ext-tag { font-size: 0.65em; background: #585b70; color: #cdd6f4; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+        #main { flex:1; display:flex; flex-direction:column; padding:20px; overflow-y:auto; }
+        #preview-container { flex:1; display:flex; justify-content:center; align-items:center; background:#11111b; border-radius:12px; min-height:200px; margin-bottom:15px; }
+        #preview-img { max-width:100%; max-height:400px; border-radius:8px; object-fit:contain; display:block; }
+        #no-preview { display:none; }
+        #detail { background:#181825; padding:15px; border-radius:12px; border:1px solid #313244; }
+        .btn { background:#89b4fa; color:#1e1e2e; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; margin-right:8px; font-weight:bold; font-size:0.95rem; }
+        .btn-danger { background:#f38ba8; color:#1e1e2e; }
+        .btn-secondary { background:#45475a; color:#cdd6f4; }
+        .flex-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:5px 0; }
+        input[type="file"] { background:#313244; color:#cdd6f4; border:1px solid #585b70; padding:4px; border-radius:4px; font-size:0.9rem; }
+        #upload-status { margin-left:10px; color:#a6e3a1; }
+        #upload-progress { margin-top:10px; color:#a6e3a1; font-size:0.9em; display:none; }
+        .info-line { margin:4px 0; font-size:0.95rem; }
+        #breadcrumb { color:#a6adc8; font-size:0.9em; margin-left:10px; cursor:pointer; }
+        #breadcrumb:hover { text-decoration:underline; }
+        #storage-info {
+            padding: 8px 12px;
+            background: #313244;
+            border-top: 1px solid #45475a;
+            font-size: 0.8em;
+            color: #a6adc8;
+            flex-shrink: 0;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        #storage-info .sd-label { font-weight: bold; color: #89b4fa; }
+
+        /* 上传模态框 */
+        #upload-modal {
+            display:none;
+            position:fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background:rgba(0,0,0,0.7);
+            justify-content:center;
+            align-items:center;
+            z-index:1000;
+            padding:15px;
+        }
+        #upload-modal > div {
+            background:#1e1e2e;
+            padding:25px;
+            border-radius:16px;
+            min-width:280px;
+            max-width:500px;
+            width:100%;
+            border:1px solid #45475a;
+        }
+        #upload-modal h3 { margin-top:0; }
+        #upload-modal input[type="file"] { width:100%; }
+
+        #extra-actions {
+            margin-top: 12px;
+            padding: 8px 0;
+            border-top: 1px solid #313244;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #extra-actions .extra-btn {
+            background: #45475a;
+            color: #cdd6f4;
+            border: 1px solid #585b70;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+        #extra-actions .extra-btn:hover {
+            background: #585b70;
+        }
+        #extra-actions .extra-btn.primary {
+            background: #89b4fa;
+            color: #1e1e2e;
+        }
+        #extra-actions .extra-btn.danger {
+            background: #f38ba8;
+            color: #1e1e2e;
+        }
+
+        /* ========== 手机响应式 ========== */
+        @media screen and (max-width: 768px) {
+            body { flex-direction: column; }
+            #sidebar { width:100%; height:55vh; border-right:none; border-bottom:2px solid #313244; }
+            #main { height:45vh; padding:10px; }
+            #preview-container {
+                min-height:0;
+                flex:0 0 auto;
+                margin-bottom:8px;
+                background:#11111b;
+                border-radius:10px;
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                padding:4px;
+            }
+            #preview-img {
+                max-height:20vh;
+                width:auto;
+                max-width:100%;
+                object-fit:contain;
+                display:block;
+            }
+            #no-preview { display:none; }
+            #detail { padding:8px; }
+            #toolbar { padding:6px 8px; gap:5px; }
+            #toolbar select, #toolbar button { padding:6px 10px; font-size:0.8rem; }
+            #device-info { font-size:0.7rem; padding:2px 8px; }
+            #search-input { font-size:0.9rem; padding:6px 10px; }
+            .dir-item, .file-item { padding:10px 8px; min-height:44px; font-size:0.9rem; }
+            .btn { padding:8px 12px; font-size:0.8rem; margin-right:4px; }
+            .info-line { font-size:0.85rem; }
+            #storage-info { font-size:0.65rem; padding:4px 8px; gap:4px; }
+            #upload-modal > div { padding:16px; min-width:auto; }
+
+            #extra-actions {
+                padding: 4px 0;
+                margin-top: 6px;
+                gap: 4px;
+            }
+            #extra-actions .extra-btn {
+                padding: 4px 10px;
+                font-size: 0.75rem;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            #sidebar { height:50vh; }
+            #main { height:50vh; padding:6px; }
+            #preview-img { max-height:18vh; }
+            #toolbar select, #toolbar button { padding:4px 8px; font-size:0.75rem; }
+            .dir-item, .file-item { padding:8px 6px; min-height:40px; font-size:0.8rem; }
+            .btn { padding:6px 10px; font-size:0.75rem; }
+        }
+    </style>
+</head>
+<body>
+<div id="sidebar">
+    <div id="device-info">{{ _('Loading device info...') }}</div>
+    <div id="toolbar">
+        <select id="sd-select">
+            <option value="1" selected>SD1</option>
+            <option value="2">SD2</option>
+        </select>
+        <button onclick="loadDirs()">{{ _('Refresh') }}</button>
+        <button onclick="showUpload()" class="btn-secondary">{{ _('Upload game') }}</button>
+        <button onclick="batchScrape(this)" class="btn-secondary">{{ _('Batch scrape') }}</button>
+        <button onclick="shutdownServer()" class="btn-danger">{{ _('Shutdown server') }}</button>
+        <span id="breadcrumb"></span>
+    </div>
+    <div id="search-bar">
+        <input type="text" id="search-input" placeholder="{{ _('Search...') }}" oninput="filterItems(this.value)">
+    </div>
+    <div id="search-result"></div>
+    <div id="game-list"></div>
+</div>
+<div id="main">
+    <div id="detail">
+        <div id="detail-content">{{ _('Select a game') }}</div>
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="selectPreviewFile()">{{ _('Update preview') }}</button>
+            <input type="file" id="update-preview-input" accept="image/*" style="display:none;" onchange="updatePreview()">
+            <button class="btn btn-secondary" onclick="scrapePreview(this)">{{ _('Scrape preview') }}</button>
+            <button class="btn btn-secondary" onclick="renameCurrent()">{{ _('Rename game') }}</button>
+            <button class="btn btn-secondary" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
+            <input type="file" id="guide-input" accept=".txt" style="display:none;" onchange="uploadGuide()">
+            <button class="btn btn-danger" onclick="deletePreview()">{{ _('Delete preview') }}</button>
+            <button class="btn btn-danger" onclick="deleteCurrent()">{{ _('Delete game') }}</button>
+        </div>
+    </div>
+    <div id="preview-container">
+        <img id="preview-img" src="" alt="{{ _('Preview') }}">
+        <div id="no-preview" style="display:none;">{{ _('No preview') }}</div>
+    </div>
+    <div id="extra-actions" style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 0; border-top: 1px solid #313244;">
+    <span style="color:#a6adc8; font-size:0.9rem;">{{ _('Extended: ') }}</span>
+    <div id="extra-actions-buttons" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+</div>
+    <div id="global-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+        <div style="background:#1e1e2e; padding:40px 50px; border-radius:16px; border:1px solid #45475a; text-align:center; min-width:200px;">
+            <div style="display:inline-block; width:40px; height:40px; border:4px solid #45475a; border-top:4px solid #89b4fa; border-radius:50%; animation: spin 1s linear infinite; margin-bottom:15px;"></div>
+            <div id="global-overlay-text" style="color:#cdd6f4; font-size:1.2rem;">{{ _('Operation in progress, please wait...') }}</div>
+        </div>
+    </div>
+    <style>
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+    <div id="storage-info">{{ _('Loading storage info...') }}</div>
+</div>
+<div id="upload-modal">
+    <div>
+        <h3>{{ _('Upload game') }}</h3>
+        <div class="flex-row"><label>{{ _('Target directory:') }} <input id="upload-console" placeholder="{{ _('e.g. GBA') }}" style="background:#313244;color:#cdd6f4;border:1px solid #585b70;padding:4px;border-radius:4px;width:100%;"></label></div>
+        <div class="flex-row"><label>{{ _('ROM file:') }} <input type="file" id="upload-rom" multiple style="background:#313244;color:#cdd6f4;border:1px solid #585b70;padding:4px;border-radius:4px;width:100%;"></label></div>
+        <div class="flex-row"><label>{{ _('Preview:') }} <input type="file" id="upload-preview" multiple accept="image/*" style="background:#313244;color:#cdd6f4;border:1px solid #585b70;padding:4px;border-radius:4px;width:100%;"></label></div>
+        <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" onclick="doUpload()">{{ _('Upload') }}</button>
+            <button class="btn-secondary" onclick="closeUpload()">{{ _('Cancel') }}</button>
+            <span id="upload-status"></span>
+        </div>
+        <div id="upload-progress"></div>
+    </div>
+</div>
+
+<script>
+// 翻译字典
+var lang = {
+    progres_ing: {{ _('Operation in progress, please wait...')|tojson }},
+    about: {{ _('About')|tojson }},
+    about_info: {{ _('About Info')|tojson }},
+    backup_save: {{ _('Backup Save')|tojson }},
+    restore_save: {{ _('Restore Save')|tojson }},
+    backup_save_confirm: {{ _('Backup all save data for all games?')|tojson }},
+    backup_save_starting: {{ _('Backup started...')|tojson }},
+    backup_save_success: {{ _('Backup file downloaded successfully')|tojson }},
+    backup_save_failed: {{ _('Backup failed: {error}')|tojson }},
+    restore_save_prompt: {{ _('Select a backup file (.tar.gz) to restore')|tojson }},
+    restore_save_confirm: {{ _('This will overwrite all current save data. Continue?')|tojson }},
+    restore_save_success: {{ _('Restore completed successfully')|tojson }},
+    restore_save_failed: {{ _('Restore failed: {error}')|tojson }},
+    please_select_txt: {{ _('Please select a .txt file')|tojson }},
+    guide_overwrite_confirm: {{ _('Guide file already exists, overwrite?')|tojson }},
+    guide_upload_success: {{ _('Guide uploaded successfully')|tojson }},
+    upload_guide_failed: {{ _('Upload guide failed: {error}')|tojson }},
+    rename_game: {{ _('Rename game')|tojson }},
+    rename_prompt: {{ _('Enter new name (without extension):')|tojson }},
+    rename_confirm: {{ _('Rename "{old}" to "{new}"?')|tojson }},
+    rename_success: {{ _('Renamed successfully')|tojson }},
+    rename_failed: {{ _('Rename failed: {error}')|tojson }},
+    rename_not_supported: {{ _('This system does not support renaming')|tojson }},
+    rename_invalid_name: {{ _('Invalid name')|tojson }},
+    rename_name_exists: {{ _('File with this name already exists')|tojson }},
+    scrapeing: {{ _('Scrapeing...')|tojson }},
+    batch_scrape: {{ _('Batch scrape')|tojson }},
+    batch_scrape_confirm: {{ _('Scrape screenshots only for games without preview in current directory?')|tojson }},
+    batch_scrape_starting: {{ _('Starting batch scrape...')|tojson }},
+    batch_scrape_complete: {{ _('Batch scrape complete! Success: {success}, Failed: {failed}')|tojson }},
+    no_game_dir: {{ _('Please enter a game directory first')|tojson }},
+    delete_preview_confirm: {{ _('Delete preview image for "{name}"?')|tojson }},
+    delete_preview_success: {{ _('Preview image deleted')|tojson }},
+    no_preview_to_delete: {{ _('No preview image to delete')|tojson }},
+    no_preview: {{ _('No preview')|tojson }},
+    total_items: {{ _('Total {count} items')|tojson }},
+    found_items: {{ _('Found {count} items')|tojson }},
+    delete_confirm: {{ _('Delete "{name}" and its preview?')|tojson }},
+    deleted_success: {{ _('Deleted successfully')|tojson }},
+    delete_failed: {{ _('Delete failed: {error}')|tojson }},
+    unknown_error: {{ _('Unknown error')|tojson }},
+    select_game_first: {{ _('Please select a game first')|tojson }},
+    preview_updated: {{ _('Preview updated successfully!')|tojson }},
+    update_failed: {{ _('Update failed: {error}')|tojson }},
+    select_rom: {{ _('Please select at least one file')|tojson }},
+    enter_target_dir: {{ _('Please enter target directory')|tojson }},
+    uploading: {{ _('Uploading...')|tojson }},
+    success: {{ _('Success')|tojson }},
+    failed: {{ _('Failed: {error}')|tojson }},
+    network_error: {{ _('Network error')|tojson }},
+    storage_load_failed: {{ _('Failed to load storage info')|tojson }},
+    storage_unavailable: {{ _('Storage info unavailable')|tojson }},
+    device_unavailable: {{ _('Device info unavailable')|tojson }},
+    shutdown_confirm: {{ _('Shutdown server?')|tojson }},
+    server_shutting_down: {{ _('Server shutting down')|tojson }},
+    server_stopped: {{ _('Server stopped')|tojson }},
+    device_info_template: {{ _('⭐ Anbernic game management | Model: {board} | Firmware: {version}')|tojson }},
+    preparing_upload: {{ _('Preparing to upload {count} files...')|tojson }},
+    upload_complete: {{ _('Upload completed!')|tojson }},
+    parse_error: {{ _('Failed to parse response')|tojson }},
+    by: {{ _('By')|tojson }}
+};
+
+var currentLang = '{{ lang }}';
+var version = '{{ ver }}';
+var currentPath = '';
+var currentItems = [];
+var currentFile = null;
+var currentSd = 1;
+var extraActions = {};
+
+function getPlaceholderImage(text) {
+    text = text || 'No Preview';
+    return 'data:image/svg+xml,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+            <rect width="200" height="200" fill="#2a2a3a" rx="10"/>
+            <circle cx="100" cy="80" r="30" fill="none" stroke="#6c7086" stroke-width="4"/>
+            <rect x="70" y="110" width="60" height="30" rx="5" fill="none" stroke="#6c7086" stroke-width="4"/>
+            <line x1="80" y1="125" x2="80" y2="140" stroke="#6c7086" stroke-width="4"/>
+            <line x1="120" y1="125" x2="120" y2="140" stroke="#6c7086" stroke-width="4"/>
+            <text x="100" y="175" font-family="sans-serif" font-size="14" fill="#a6adc8" text-anchor="middle">${text}</text>
+        </svg>
+    `);
+}
+
+function getSd() { return document.getElementById('sd-select').value; }
+
+function loadDirs() {
+    var sd = getSd();
+    fetch('/api/sd', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sd: parseInt(sd)})
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.status === 'ok') {
+            currentSd = data.sd;
+            updateStorageInfo();
+            updateDeviceInfo();
+            fetch('/api/dirs')
+            .then(function(response) { return response.json(); })
+            .then(function(dirs) {
+                var list = document.getElementById('game-list');
+                list.innerHTML = '';
+                currentPath = '';
+                currentFile = null;
+                document.getElementById('breadcrumb').textContent = '';
+                document.getElementById('search-input').value = '';
+                document.getElementById('search-result').textContent = '';
+                clearDetail();
+                for (var i = 0; i < dirs.length; i++) {
+                    var dir = dirs[i];
+                    var div = document.createElement('div');
+                    div.className = 'dir-item';
+                    div.textContent = dir.name + (dir.has_games ? ' [☆]' : '');
+                    div.dataset.path = dir.path;
+                    div.onclick = (function(d) { return function() { enterDir(d.path); }; })(dir);
+                    list.appendChild(div);
+                }
+                currentItems = [];
+            })
+            .catch(function(err) { console.error('dirs error', err); });
+        }
+    })
+    .catch(function(err) { console.error('sd error', err); });
+}
+
+function enterDir(path) {
+    currentPath = path || '';
+    if (currentPath === '') {
+        document.getElementById('breadcrumb').textContent = '';
+    } else {
+        var displayPath = currentPath.replace(/\//g, ' / ');
+        document.getElementById('breadcrumb').textContent = '📁 ' + displayPath + ' ({{ _("Back to parent") }})';
+        document.getElementById('breadcrumb').onclick = function() {
+            if (currentPath.includes('/')) {
+                var parent = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                enterDir(parent);
+            } else {
+                loadDirs();
+            }
+        };
+    }
+    document.getElementById('search-input').value = '';
+    document.getElementById('search-result').textContent = '';
+    fetch('/api/files?dir=' + encodeURIComponent(currentPath) + '&lang=' + encodeURIComponent(currentLang))
+    .then(function(response) { return response.json(); })
+    .then(function(items) {
+        currentItems = items;
+        renderItems(items);
+        clearDetail();
+    })
+    .catch(function(err) { console.error('files error', err); });
+}
+
+function renderItems(items) {
+    var list = document.getElementById('game-list');
+    list.innerHTML = '';
+    if (currentPath !== '') {
+        var backDiv = document.createElement('div');
+        backDiv.className = 'dir-item';
+        backDiv.textContent = '⬆ {{ _("Back to parent") }}';
+        backDiv.style.background = '#313244';
+        backDiv.onclick = function() {
+            if (currentPath.includes('/')) {
+                var parent = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                enterDir(parent);
+            } else {
+                loadDirs();
+            }
+        };
+        list.appendChild(backDiv);
+    }
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var div = document.createElement('div');
+        div.className = item.is_dir ? 'dir-item' : 'file-item';
+        if (item.is_dir) {
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = '📁 ' + item.name;
+            div.appendChild(nameSpan);
+            div.onclick = (function(it) { return function() { enterDir(it.path); }; })(item);
+        } else {
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = '🎮 ' + item.name;
+            var ext = item.path.split('.').pop().toLowerCase();
+            var extSpan = document.createElement('span');
+            extSpan.className = 'console-tag';
+            extSpan.textContent = '.' + ext;
+            var sizeSpan = document.createElement('span');
+            sizeSpan.className = 'file-size';
+            sizeSpan.textContent = (item.size / 1024).toFixed(1) + 'KB';
+            div.appendChild(nameSpan);
+            if (ext){
+                div.appendChild(extSpan);
+            }
+            div.appendChild(sizeSpan);
+            div.dataset.path = item.path;
+            div.onclick = (function(f) { return function() { selectFile(f); }; })(item);
+        }
+        list.appendChild(div);
+    }
+    var searchInput = document.getElementById('search-input');
+    var countEl = document.getElementById('search-result');
+    var count = items.length;
+    if (searchInput.value.trim() === '') {
+        countEl.textContent = lang.total_items.replace('{count}', count);
+    } else {
+        countEl.textContent = lang.found_items.replace('{count}', count);
+    }
+}
+
+function filterItems(query) {
+    if (!currentItems) return;
+    var q = query.toLowerCase();
+    var filtered = currentItems.filter(function(item) {
+        return item.name.toLowerCase().includes(q) || (item.console && item.console.toLowerCase().includes(q));
+    });
+    renderItems(filtered);
+}
+
+function selectFile(file) {
+    currentFile = file;
+    var items = document.querySelectorAll('.file-item');
+    for (var i = 0; i < items.length; i++) {
+        items[i].classList.remove('active');
+    }
+    var activeItems = document.querySelectorAll('.file-item[data-path="' + file.path + '"]');
+    if (activeItems.length > 0) {
+        activeItems[0].classList.add('active');
+    }
+
+    var img = document.getElementById('preview-img');
+    var noPrev = document.getElementById('no-preview');
+    if (file.preview) {
+        img.src = '/api/preview?path=' + encodeURIComponent(file.path) + '&t=' + Date.now();
+        img.style.display = 'block';
+        noPrev.style.display = 'none';
+    } else {
+        img.src = getPlaceholderImage(lang.no_preview);
+        img.style.display = 'block';
+        noPrev.style.display = 'none';
+    }
+
+    var detail = document.getElementById('detail-content');
+    detail.innerHTML = '';
+    var lines = [
+        { label: '', value: file.name, strong: true },
+        { label: '{{ _("Platform: ") }}', value: file.console },
+        { label: '{{ _("Size: ") }}', value: (file.size / (1024*1024)).toFixed(2) + ' MB' },
+        { label: '{{ _("Modified: ") }}', value: new Date(file.modified * 1000).toLocaleString() },
+        { label: '{{ _("Path: ") }}', value: file.path },
+        { label: '{{ _("Guide: ") }}', value: file.guide_exists ? '{{ _("Yes") }}' : '{{ _("No") }}' }
+    ];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var div = document.createElement('div');
+        div.className = 'info-line';
+        if (line.strong) {
+            var strong = document.createElement('strong');
+            strong.textContent = line.value;
+            div.appendChild(strong);
+        } else {
+            div.textContent = line.label + line.value;
+        }
+        detail.appendChild(div);
+    }
+}
+
+function clearDetail() {
+    document.getElementById('detail-content').textContent = '{{ _("Select a game") }}';
+    var img = document.getElementById('preview-img');
+    img.src = getPlaceholderImage(lang.no_preview);
+    img.style.display = 'block';
+    document.getElementById('no-preview').style.display = 'none';
+}
+
+function deletePreview() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+    if (!currentFile.preview) {
+        alert(lang.no_preview_to_delete);
+        return;
+    }
+    if (!confirm(lang.delete_preview_confirm.replace('{name}', currentFile.name))) return;
+    fetch('/api/delete_preview?path=' + encodeURIComponent(currentFile.path), { method: 'DELETE' })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(lang.delete_preview_success);
+            currentFile.preview = null;
+            selectFile(currentFile);
+        } else {
+            alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+    })
+    .catch(function(err) {
+        alert(lang.network_error);
+    });
+}
+
+function deleteCurrent() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+    if (!confirm(lang.delete_confirm.replace('{name}', currentFile.name))) return;
+    fetch('/api/game?path=' + encodeURIComponent(currentFile.path), { method: 'DELETE' })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(lang.deleted_success);
+            currentFile = null;
+            clearDetail();
+            enterDir(currentPath);
+        } else {
+            alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+    });
+}
+
+function updatePreview() {
+    var fileInput = document.getElementById('update-preview-input');
+    var file = fileInput.files[0];
+    if (!file) return;
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        fileInput.value = '';
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('path', currentFile.path);
+    formData.append('image', file);
+
+    var btn = document.querySelector('#detail .btn-secondary');
+    var originalText = btn.textContent;
+    btn.textContent = lang.uploading;
+    btn.disabled = true;
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    var textEl = document.getElementById('global-overlay-text');
+    textEl.textContent = '⏳ ' + lang.progres_ing;
+
+    fetch('/api/update_preview', { method: 'POST', body: formData })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(lang.preview_updated);
+            currentFile.preview = data.preview_path;
+            selectFile(currentFile);
+        } else {
+            alert(lang.update_failed.replace('{error}', data.error));
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
+        fileInput.value = '';
+        overlay.style.display = 'none';
+    })
+    .catch(function(err) {
+        alert(lang.network_error);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        fileInput.value = '';
+        overlay.style.display = 'none';
+    });
+}
+
+function showUpload() {
+    if (!currentPath) {
+        alert(lang.no_game_dir);
+        return;
+    }
+    document.getElementById('upload-modal').style.display = 'flex';
+    document.getElementById('upload-status').textContent = '';
+    document.getElementById('upload-progress').style.display = 'none';
+    if (currentPath) {
+        document.getElementById('upload-console').value = currentPath;
+    }
+}
+
+function closeUpload() {
+    document.getElementById('upload-modal').style.display = 'none';
+}
+
+function doUpload() {
+    var consoleInput = document.getElementById('upload-console').value.trim();
+    var romFiles = document.getElementById('upload-rom').files;
+    var previewFiles = document.getElementById('upload-preview').files;
+
+    if (romFiles.length === 0 && previewFiles.length === 0) { alert(lang.select_rom); return; }
+    if (!consoleInput) { alert(lang.enter_target_dir); return; }
+
+    var formData = new FormData();
+    formData.append('console', consoleInput);
+    for (var i = 0; i < romFiles.length; i++) {
+        formData.append('game_files', romFiles[i]);
+    }
+    for (var i = 0; i < previewFiles.length; i++) {
+        formData.append('preview_file', previewFiles[i]);
+    }
+
+    var status = document.getElementById('upload-status');
+    var progress = document.getElementById('upload-progress');
+    progress.style.display = 'block';
+    progress.textContent = lang.preparing_upload.replace('{count}', romFiles.length);
+    status.textContent = lang.uploading;
+
+    disableUI(true);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload', true);
+
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            var percent = Math.round((e.loaded / e.total) * 100);
+            progress.textContent = lang.uploading + ' ' + percent + '% (' + romFiles.length + ' {{ _("ROM files") }})';
+        } else {
+            progress.textContent = lang.uploading + '... (' + e.loaded + ' {{ _("bytes") }})';
+        }
+    };
+
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            try {
+                var response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    status.textContent = lang.success + ' (' + response.count + ' {{ _("files") }})';
+                    progress.textContent = lang.upload_complete;
+                    setTimeout(function() {
+                        closeUpload();
+                        enterDir(currentPath);
+                        disableUI(false);
+                        progress.style.display = 'none';
+                    }, 1500);
+                } else {
+                    status.textContent = lang.failed.replace('{error}', response.error || '');
+                    progress.textContent = '';
+                    disableUI(false);
+                }
+            } catch (e) {
+                status.textContent = lang.parse_error;
+                progress.textContent = '';
+                disableUI(false);
+            }
+        } else {
+            status.textContent = lang.failed.replace('{error}', 'HTTP ' + xhr.status);
+            progress.textContent = '';
+            disableUI(false);
+        }
+    };
+
+    xhr.onerror = function() {
+        status.textContent = lang.network_error;
+        progress.textContent = '';
+        disableUI(false);
+    };
+
+    xhr.send(formData);
+}
+
+function disableUI(disabled) {
+    var elements = document.querySelectorAll('#toolbar select, #toolbar button, #search-input');
+    for (var i = 0; i < elements.length; i++) {
+        elements[i].disabled = disabled;
+    }
+}
+
+function updateStorageInfo() {
+    fetch('/api/storage')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.error) {
+            document.getElementById('storage-info').innerHTML = lang.storage_load_failed;
+            return;
+        }
+        var totalGB = (data.total / (1024*1024*1024)).toFixed(1);
+        var usedGB = (data.used / (1024*1024*1024)).toFixed(1);
+        var freeGB = (data.free / (1024*1024*1024)).toFixed(1);
+        var percent = (data.used / data.total * 100).toFixed(0);
+        document.getElementById('storage-info').innerHTML =
+            '<span class="sd-label">💾 SD' + currentSd + '</span> | ' +
+            '{{ _("Capacity") }}: ' + totalGB + ' GB | {{ _("Used") }}: ' + usedGB + ' GB (' + percent + '%) | {{ _("Free") }}: ' + freeGB + ' GB | 📝 ' + lang.by + ' G.R.H';
+    })
+    .catch(function(err) {
+        document.getElementById('storage-info').textContent = lang.storage_unavailable;
+    });
+}
+
+function updateDeviceInfo() {
+    fetch('/api/device_info')
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        var version = data.system_version || '{{ _("Unknown") }}';
+        var ver = data.ver || '{{ _("Unknown") }}';
+        document.getElementById('device-info').innerHTML =
+            lang.device_info_template
+            .replace('{board}', data.board)
+            .replace('{version}', version) + ' | ✍️ v' + ver;
+    })
+    .catch(function(err) {
+        document.getElementById('device-info').textContent = lang.device_unavailable;
+    });
+}
+
+function scrapePreview(btn) {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+
+    var originalText = btn.textContent;
+    btn.textContent = lang.scrapeing;
+    btn.disabled = true;
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    var textEl = document.getElementById('global-overlay-text');
+    textEl.textContent = '⏳ ' + lang.progres_ing;
+
+    fetch('/api/scrape_preview', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: currentFile.path})
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(lang.preview_updated);
+            currentFile.preview = data.preview_path;
+            selectFile(currentFile);
+        } else {
+            alert(lang.update_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
+        overlay.style.display = 'none';
+    })
+    .catch(function(err) {
+        alert(lang.network_error);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        overlay.style.display = 'none';
+    });
+}
+
+function batchScrape(btn) {
+    if (!currentPath) {
+        alert(lang.no_game_dir);
+        return;
+    }
+    if (!confirm(lang.batch_scrape_confirm)) return;
+
+    var originalText = btn.textContent;
+    btn.textContent = lang.scrapeing;
+    btn.disabled = true;
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    var textEl = document.getElementById('global-overlay-text');
+    textEl.textContent = '⏳ ' + lang.progres_ing;
+
+    fetch('/api/batch_scrape', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ dir: currentPath })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success !== undefined) {
+            alert(lang.batch_scrape_complete.replace('{success}', data.success).replace('{failed}', data.failed));
+        } else {
+            alert(lang.update_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
+        overlay.style.display = 'none';
+        enterDir(currentPath);
+    })
+    .catch(err => {
+        alert(lang.network_error);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        overlay.style.display = 'none';
+    });
+}
+
+function renameCurrent() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+
+    var consoleName = currentFile.console;
+    var unsupportedSystems = ['DOS', 'EASYRPG', 'ONS', 'SCUMMVM',
+                              'ATOMISWAVE', 'CPS1', 'CPS2', 'CPS3', 'FBNEO',
+                              'HBMAME', 'MAME', 'NAOMI', 'NEOGEO', 'PGM2', 'VARCADE'];
+    if (unsupportedSystems.includes(consoleName)) {
+        alert(lang.rename_not_supported);
+        return;
+    }
+
+    var oldName = currentFile.name;
+    var oldBase = currentFile.path.split('/').pop();
+    var oldExt = oldBase.includes('.') ? '.' + oldBase.split('.').pop() : '';
+    var oldNameWithoutExt = oldBase.replace(/\.[^/.]+$/, '');
+
+    var newName = prompt(lang.rename_prompt, oldNameWithoutExt);
+    if (newName === null) return;
+    newName = newName.trim();
+    if (!newName) {
+        alert(lang.rename_invalid_name);
+        return;
+    }
+    if (newName.includes('/') || newName.includes('\\')) {
+        alert(lang.rename_invalid_name);
+        return;
+    }
+    if (!confirm(lang.rename_confirm.replace('{old}', oldName).replace('{new}', newName))) return;
+
+    var btn = document.querySelector('#detail .btn-secondary:not(.btn-danger)');
+    fetch('/api/rename', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: currentFile.path, new_name: newName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(lang.rename_success);
+            enterDir(currentPath);
+            setTimeout(function() {
+                var items = document.querySelectorAll('.file-item');
+                var newPath = data.new_path;
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].dataset.path === newPath) {
+                        items[i].click();
+                        break;
+                    }
+                }
+            }, 300);
+        } else {
+            alert(lang.rename_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+    })
+    .catch(err => {
+        alert(lang.network_error);
+    });
+}
+
+function uploadGuide() {
+    var fileInput = document.getElementById('guide-input');
+    var file = fileInput.files[0];
+    if (!file) return;
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        fileInput.value = '';
+        return;
+    }
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+        alert(lang.please_select_txt || 'Please select a .txt file');
+        fileInput.value = '';
+        return;
+    }
+
+    if (currentFile.guide_exists) {
+        if (!confirm(lang.guide_overwrite_confirm || 'Guide file already exists, overwrite?')) {
+            fileInput.value = '';
+            return;
+        }
+    }
+
+    var formData = new FormData();
+    formData.append('path', currentFile.path);
+    formData.append('guide_file', file);
+
+    var btn = document.querySelector('#detail .btn-secondary:not(.btn-danger)');
+    var originalText = btn.textContent;
+    btn.textContent = lang.uploading;
+    btn.disabled = true;
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    var textEl = document.getElementById('global-overlay-text');
+    textEl.textContent = '⏳ ' + lang.progres_ing;
+
+    fetch('/api/upload_guide', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(lang.guide_upload_success || 'Guide uploaded successfully');
+            currentFile.guide_exists = true;
+            selectFile(currentFile);
+        } else {
+            alert((lang.upload_guide_failed || 'Upload guide failed: {error}').replace('{error}', data.error || lang.unknown_error));
+        }
+        btn.textContent = originalText;
+        btn.disabled = false;
+        fileInput.value = '';
+        overlay.style.display = 'none';
+    })
+    .catch(err => {
+        alert(lang.network_error);
+        btn.textContent = originalText;
+        btn.disabled = false;
+        fileInput.value = '';
+        overlay.style.display = 'none';
+    });
+}
+
+function selectPreviewFile() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+    document.getElementById('update-preview-input').click();
+}
+
+function selectGuideFile() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+    document.getElementById('guide-input').click();
+}
+
+function backupSave() {
+    if (!confirm(lang.backup_save_confirm)) return;
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    var textEl = document.getElementById('global-overlay-text');
+    textEl.textContent = '⏳ ' + lang.progres_ing;
+
+    var btn = document.querySelector('#extra-actions .extra-btn[data-action="backup"]');
+    var originalText = btn.textContent;
+    btn.textContent = lang.backup_save_starting;
+    btn.disabled = true;
+
+    fetch('/api/backup_save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => { throw new Error(data.error || 'Unknown error'); });
+        }
+
+        return response.blob().then(blob => {
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'save_backup.tar.gz';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            alert(lang.backup_save_success);
+        });
+    })
+    .catch(err => {
+        alert(lang.backup_save_failed.replace('{error}', err.message));
+    })
+    .finally(() => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        overlay.style.display = 'none';
+    });
+}
+
+function restoreSave() {
+    if (!confirm(lang.restore_save_confirm)) return;
+
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.tar.gz,.tgz';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.onchange = function(e) {
+        var file = this.files[0];
+        if (!file) {
+            this.remove();
+            return;
+        }
+
+        var overlay = document.getElementById('global-overlay');
+        overlay.style.display = 'flex';
+        var textEl = document.getElementById('global-overlay-text');
+        textEl.textContent = '⏳ ' + lang.progres_ing;
+
+        var formData = new FormData();
+        formData.append('backup_file', file);
+
+        var btn = document.querySelector('#extra-actions .extra-btn[data-action="restore"]');
+        var originalText = btn.textContent;
+        btn.textContent = lang.uploading;
+        btn.disabled = true;
+
+        fetch('/api/restore_save', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(lang.restore_save_success);
+            } else {
+                alert(lang.restore_save_failed.replace('{error}', data.error || lang.unknown_error));
+            }
+        })
+        .catch(err => {
+            alert(lang.network_error);
+        })
+        .finally(() => {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            overlay.style.display = 'none';
+            this.remove();
+        });
+    };
+
+    input.click();
+}
+
+function shutdownServer() {
+    if (confirm(lang.shutdown_confirm)) {
+        fetch('/shutdown', { method: 'GET' })
+        .then(function(response) { return response.text(); })
+        .then(function(text) {
+            alert(lang.server_shutting_down);
+            document.body.innerHTML = '';
+            document.body.style.margin = '0';
+            document.body.style.padding = '0';
+            document.body.style.display = 'flex';
+            document.body.style.justifyContent = 'center';
+            document.body.style.alignItems = 'center';
+            document.body.style.height = '100vh';
+            document.body.style.background = '#1e1e2e';
+            document.body.style.color = '#cdd6f4';
+            document.body.style.fontFamily = 'sans-serif';
+            document.body.style.fontSize = '2rem';
+            document.body.textContent = lang.server_stopped;
+        })
+        .catch(function() {
+            document.body.innerHTML = '';
+            document.body.style.margin = '0';
+            document.body.style.padding = '0';
+            document.body.style.display = 'flex';
+            document.body.style.justifyContent = 'center';
+            document.body.style.alignItems = 'center';
+            document.body.style.height = '100vh';
+            document.body.style.background = '#1e1e2e';
+            document.body.style.color = '#cdd6f4';
+            document.body.style.fontFamily = 'sans-serif';
+            document.body.style.fontSize = '2rem';
+            document.body.textContent = lang.server_stopped;
+        });
+    }
+}
+
+function addExtraAction(name, callback, cssClass = '', action = '') {
+    if (extraActions[name]) return;
+    var container = document.getElementById('extra-actions-buttons');
+    var btn = document.createElement('button');
+    btn.className = 'extra-btn' + (cssClass ? ' ' + cssClass : '');
+    if (action) btn.dataset.action = action;
+    btn.textContent = name;
+    btn.onclick = function(e) {
+        callback(e);
+    };
+    container.appendChild(btn);
+    extraActions[name] = btn;
+}
+
+addExtraAction(lang.backup_save, backupSave, 'primary', 'backup');
+addExtraAction(lang.restore_save, restoreSave, 'primary', 'restore');
+addExtraAction(lang.about || 'About', function() {alert(lang.about_info.replace('{version}', version));}, 'primary');
+
+document.getElementById('sd-select').addEventListener('change', loadDirs);
+loadDirs();
+</script>
+</body>
+</html>
