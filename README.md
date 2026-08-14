@@ -108,6 +108,10 @@ https://screenshots/backup.png
 
 Backup and restore save data with one click.
 
+## 🤝 Contributing
+
+Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
+
 ## 📄 License
 
 This project is licensed under the MIT License – see the LICENSE file for details.
