@@ -113,17 +113,15 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 ## 🖼️ Screenshots
 
-(Add screenshots here to showcase the interface)
-
-https://screenshots/dashboard.png
+<img width="1360" height="728" alt="屏幕截图 2026-08-14 142921" src="https://github.com/user-attachments/assets/bb32a2af-0432-469e-b629-5ad793527c5e" />
 
 Main dashboard – browse games, view previews, and manage files.
 
-https://screenshots/scraping.png
+<img width="1339" height="715" alt="屏幕截图 2026-08-14 143049" src="https://github.com/user-attachments/assets/4c80475a-72ca-4c3d-901a-70cda2aaea0d" />
 
 Batch scraping cover art for all games in a directory.
 
-https://screenshots/backup.png
+<img width="1351" height="729" alt="屏幕截图 2026-08-14 143122" src="https://github.com/user-attachments/assets/0ae6eda3-ecda-4300-87dd-a7c514e0eded" />
 
 Backup and restore save data with one click.
 
