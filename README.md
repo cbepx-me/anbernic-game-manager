@@ -114,7 +114,7 @@ Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
 
 ## 📄 License
 
-This project is licensed under the MIT License – see the LICENSE file for details.
+This project is licensed under the MIT License – see the [LICENSE](https://github.com/cbepx-me/anbernic-game-manager/blob/main/LICENSE) file for details.
 
 ## 🙏 Acknowledgements
 
