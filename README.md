@@ -110,7 +110,7 @@ Backup and restore save data with one click.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
+Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/cbepx-me/anbernic-game-manager/blob/main/CONTRIBUTING.md) for guidelines.
 
 ## 📄 License
 
