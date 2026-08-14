@@ -122,5 +122,5 @@ This project is licensed under the MIT License – see the [LICENSE](https://git
 
 - The Anbernic community for testing and feedback.
 
-Author: G.R.H
-Project Page: GitHub
+Author: G.R.H (cbepx-me)
+Project Page: [GitHub](https://github.com/cbepx-me/anbernic-game-manager)
