@@ -1,7 +1,11 @@
 {
+    "Loading...": "Chargement en cours...",
+    "Show missing preview": "Afficher les aperçus manquants",
+    "Show all": "Tout afficher",
+    "Reset": "Réinitialiser",
     "Operation in progress, please wait...": "Opération en cours, veuillez patienter...",
     "About": "À propos",
-    "About Info": "Anbernic game management v{version}\nest un outil de gestion Web conçu pour les consoles portables Anbernic, vous permettant de gérer facilement votre bibliothèque de jeux via un navigateur.\n\nFonctionnalités principales :\n\uD83D\uDCC1 Parcourir / Télécharger / Supprimer des ROMs de jeux\n\uD83D\uDDBC\uFE0F Scraper les images de couverture (ScreenScraper) individuellement ou en lot\n✏\uFE0F Renommer les jeux et les images d'aperçu\n\uD83D\uDCC4 Télécharger des guides de jeu (.txt)\n\uD83D\uDCBE Basculer entre deux cartes SD et visualiser l'espace de stockage en temps réel\n\uD83C\uDF0D Interface multilingue (prend en charge le chinois simplifié, l'anglais, etc.)\n\nAuteur : G.R.H\nProjet open-source, bienvenue pour les améliorations et les retours.",
+    "About Info": "Anbernic game management v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\nest un outil de gestion Web conçu pour les consoles portables Anbernic, vous permettant de gérer facilement votre bibliothèque de jeux via un navigateur.\n\nFonctionnalités principales :\n\uD83D\uDCC1 Parcourir / Télécharger / Supprimer des ROMs de jeux\n\uD83D\uDDBC\uFE0F Scraper les images de couverture (ScreenScraper) individuellement ou en lot\n✏\uFE0F Renommer les jeux et les images d'aperçu\n\uD83D\uDCC4 Télécharger des guides de jeu (.txt)\n\uD83D\uDCBE Basculer entre deux cartes SD et visualiser l'espace de stockage en temps réel\n\uD83C\uDF0D Interface multilingue (prend en charge le chinois simplifié, l'anglais, etc.)\n\nAuteur : G.R.H\nProjet open-source, bienvenue pour les améliorations et les retours.",
     "Backup Save": "Sauvegarde des données",
     "Restore Save": "Restaurer la sauvegarde",
     "Backup all save data for all games?": "Sauvegarder toutes les données de sauvegarde pour tous les jeux ?",

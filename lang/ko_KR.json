@@ -1,7 +1,11 @@
 {
+    "Loading...": "로딩 중...",
+    "Show missing preview": "누락된 미리보기 표시",
+    "Show all": "모두 표시",
+    "Reset": "재설정",
     "Operation in progress, please wait...": "작업 진행 중입니다. 잠시만 기다려주세요...",
     "About": "정보",
-    "About Info": "Anbernic 게임 관리 도구 v{version}\n은 Anbernic 휴대용 콘솔용 웹 관리 도구로, 브라우저를 통해 게임 라이브러리를 쉽게 관리할 수 있습니다.\n\n주요 기능:\n\uD83D\uDCC1 게임 ROM 탐색 / 업로드 / 삭제\n\uD83D\uDDBC\uFE0F 커버 이미지 스크레이핑(ScreenScraper) 개별 또는 일괄 처리\n✏\uFE0F 게임 및 미리보기 이미지 이름 변경\n\uD83D\uDCC4 게임 가이드(.txt) 업로드\n\uD83D\uDCBE 듀얼 SD 카드 간 전환 및 실시간 저장 공간 확인\n\uD83C\uDF0D 다국어 인터페이스(중국어 간체, 영어 등 지원)\n\n저자: G.R.H\n오픈소스 프로젝트로, 개선 및 피드백을 환영합니다.",
+    "About Info": "Anbernic 게임 관리 도구 v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\n은 Anbernic 휴대용 콘솔용 웹 관리 도구로, 브라우저를 통해 게임 라이브러리를 쉽게 관리할 수 있습니다.\n\n주요 기능:\n\uD83D\uDCC1 게임 ROM 탐색 / 업로드 / 삭제\n\uD83D\uDDBC\uFE0F 커버 이미지 스크레이핑(ScreenScraper) 개별 또는 일괄 처리\n✏\uFE0F 게임 및 미리보기 이미지 이름 변경\n\uD83D\uDCC4 게임 가이드(.txt) 업로드\n\uD83D\uDCBE 듀얼 SD 카드 간 전환 및 실시간 저장 공간 확인\n\uD83C\uDF0D 다국어 인터페이스(중국어 간체, 영어 등 지원)\n\n저자: G.R.H\n오픈소스 프로젝트로, 개선 및 피드백을 환영합니다.",
     "Backup Save": "세이브 백업",
     "Restore Save": "세이브 복원",
     "Backup all save data for all games?": "모든 게임의 세이브 데이터를 백업하시겠습니까?",

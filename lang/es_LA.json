@@ -1,7 +1,11 @@
 {
+    "Loading...": "Cargando...",
+    "Show missing preview": "Mostrar vistas previas faltantes",
+    "Show all": "Mostrar todo",
+    "Reset": "Restablecer",
     "Operation in progress, please wait...": "Operación en curso, espere...",
     "About": "Acerca de",
-    "About Info": "Anbernic game management v{version}\nes una herramienta de administración web diseñada para las consolas portátiles Anbernic, que le permite administrar fácilmente su biblioteca de juegos a través de un navegador.\n\nCaracterísticas principales:\n\uD83D\uDCC1 Navegar / Subir / Eliminar ROMs de juegos\n\uD83D\uDDBC\uFE0F Escanear imágenes de carátula (ScreenScraper) individualmente o en lote\n✏\uFE0F Renombrar juegos e imágenes de vista previa\n\uD83D\uDCC4 Subir guías de juegos (.txt)\n\uD83D\uDCBE Cambiar entre dos tarjetas SD y ver el espacio de almacenamiento en tiempo real\n\uD83C\uDF0D Interfaz multilingüe (admite chino simplificado, inglés, etc.)\n\nAutor: G.R.H\nProyecto de código abierto, se agradecen mejoras y comentarios.",
+    "About Info": "Anbernic game management v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\nes una herramienta de administración web diseñada para las consolas portátiles Anbernic, que le permite administrar fácilmente su biblioteca de juegos a través de un navegador.\n\nCaracterísticas principales:\n\uD83D\uDCC1 Navegar / Subir / Eliminar ROMs de juegos\n\uD83D\uDDBC\uFE0F Escanear imágenes de carátula (ScreenScraper) individualmente o en lote\n✏\uFE0F Renombrar juegos e imágenes de vista previa\n\uD83D\uDCC4 Subir guías de juegos (.txt)\n\uD83D\uDCBE Cambiar entre dos tarjetas SD y ver el espacio de almacenamiento en tiempo real\n\uD83C\uDF0D Interfaz multilingüe (admite chino simplificado, inglés, etc.)\n\nAutor: G.R.H\nProyecto de código abierto, se agradecen mejoras y comentarios.",
     "Backup Save": "Copia de seguridad de partidas",
     "Restore Save": "Restaurar partida",
     "Backup all save data for all games?": "¿Hacer copia de seguridad de todos los datos de partida de todos los juegos?",

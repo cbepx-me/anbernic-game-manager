@@ -67,8 +67,6 @@
             white-space: nowrap;
         }
         #storage-info .sd-label { font-weight: bold; color: #89b4fa; }
-
-        /* 上传模态框 */
         #upload-modal {
             display:none;
             position:fixed;
@@ -121,7 +119,7 @@
             color: #1e1e2e;
         }
 
-        /* ========== 手机响应式 ========== */
+        /* ========== 手机响应样式 ========== */
         @media screen and (max-width: 768px) {
             body { flex-direction: column; }
             #sidebar { width:100%; height:55vh; border-right:none; border-bottom:2px solid #313244; }
@@ -185,7 +183,8 @@
             <option value="1" selected>SD1</option>
             <option value="2">SD2</option>
         </select>
-        <button onclick="loadDirs()">{{ _('Refresh') }}</button>
+        <button onclick="loadDirs()">{{ _('Reset') }}</button>
+        <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn-secondary">{{ _('Show missing preview') }}</button>
         <button onclick="showUpload()" class="btn-secondary">{{ _('Upload game') }}</button>
         <button onclick="batchScrape(this)" class="btn-secondary">{{ _('Batch scrape') }}</button>
         <button onclick="shutdownServer()" class="btn-danger">{{ _('Shutdown server') }}</button>
@@ -195,6 +194,9 @@
         <input type="text" id="search-input" placeholder="{{ _('Search...') }}" oninput="filterItems(this.value)">
     </div>
     <div id="search-result"></div>
+    <div id="loading-indicator" style="display:none; padding:20px; text-align:center; color:#a6adc8; font-size:0.9rem;">
+        <span>{{ _('Loading...') }}</span>
+    </div>
     <div id="game-list"></div>
 </div>
 <div id="main">
@@ -246,8 +248,11 @@
 </div>
 
 <script>
-// 翻译字典
+
 var lang = {
+    loading: {{ _('Loading...')|tojson }},
+    show_missing_only: {{ _('Show missing preview')|tojson }},
+    show_all: {{ _('Show all')|tojson }},
     progres_ing: {{ _('Operation in progress, please wait...')|tojson }},
     about: {{ _('About')|tojson }},
     about_info: {{ _('About Info')|tojson }},
@@ -318,6 +323,7 @@ var currentItems = [];
 var currentFile = null;
 var currentSd = 1;
 var extraActions = {};
+var showMissingOnly = false;
 
 function getPlaceholderImage(text) {
     text = text || 'No Preview';
@@ -336,6 +342,12 @@ function getPlaceholderImage(text) {
 function getSd() { return document.getElementById('sd-select').value; }
 
 function loadDirs() {
+    showMissingOnly = false;
+    document.getElementById('missing-toggle').textContent = lang.show_missing_only;
+    document.getElementById('search-input').value = '';
+    document.getElementById('loading-indicator').style.display = 'block';
+    document.getElementById('game-list').innerHTML = '';
+
     var sd = getSd();
     fetch('/api/sd', {
         method: 'POST',
@@ -351,32 +363,44 @@ function loadDirs() {
             fetch('/api/dirs')
             .then(function(response) { return response.json(); })
             .then(function(dirs) {
+                document.getElementById('game-list').innerHTML = '';
+                document.getElementById('loading-indicator').style.display = 'none';
                 var list = document.getElementById('game-list');
                 list.innerHTML = '';
                 currentPath = '';
                 currentFile = null;
                 document.getElementById('breadcrumb').textContent = '';
-                document.getElementById('search-input').value = '';
                 document.getElementById('search-result').textContent = '';
                 clearDetail();
                 for (var i = 0; i < dirs.length; i++) {
                     var dir = dirs[i];
                     var div = document.createElement('div');
                     div.className = 'dir-item';
-                    div.textContent = dir.name + (dir.has_games ? ' [☆]' : '');
+                    var countText = dir.game_count > 0 ? ' [' + dir.game_count + ']' : '';
+                    div.textContent = dir.name + countText;
                     div.dataset.path = dir.path;
                     div.onclick = (function(d) { return function() { enterDir(d.path); }; })(dir);
                     list.appendChild(div);
                 }
                 currentItems = [];
             })
-            .catch(function(err) { console.error('dirs error', err); });
+            .catch(function(err) {
+                console.error('dirs error', err);
+                document.getElementById('loading-indicator').style.display = 'none';
+            });
         }
     })
-    .catch(function(err) { console.error('sd error', err); });
+    .catch(function(err) {
+        console.error('sd error', err);
+        document.getElementById('loading-indicator').style.display = 'none';
+    });
 }
 
 function enterDir(path) {
+    showMissingOnly = false;
+    document.getElementById('missing-toggle').textContent = lang.show_missing_only;
+    document.getElementById('search-input').value = '';
+
     currentPath = path || '';
     if (currentPath === '') {
         document.getElementById('breadcrumb').textContent = '';
@@ -392,16 +416,22 @@ function enterDir(path) {
             }
         };
     }
-    document.getElementById('search-input').value = '';
     document.getElementById('search-result').textContent = '';
+    document.getElementById('game-list').innerHTML = '';
+    document.getElementById('loading-indicator').style.display = 'block';
+
     fetch('/api/files?dir=' + encodeURIComponent(currentPath) + '&lang=' + encodeURIComponent(currentLang))
     .then(function(response) { return response.json(); })
     .then(function(items) {
+        document.getElementById('loading-indicator').style.display = 'none';
         currentItems = items;
-        renderItems(items);
+        applyFilters();
         clearDetail();
     })
-    .catch(function(err) { console.error('files error', err); });
+    .catch(function(err) {
+        dconsole.error('files error', err);
+        ocument.getElementById('loading-indicator').style.display = 'none';
+    });
 }
 
 function renderItems(items) {
@@ -462,12 +492,7 @@ function renderItems(items) {
 }
 
 function filterItems(query) {
-    if (!currentItems) return;
-    var q = query.toLowerCase();
-    var filtered = currentItems.filter(function(item) {
-        return item.name.toLowerCase().includes(q) || (item.console && item.console.toLowerCase().includes(q));
-    });
-    renderItems(filtered);
+    applyFilters();
 }
 
 function selectFile(file) {
@@ -1079,6 +1104,32 @@ function restoreSave() {
     };
 
     input.click();
+}
+
+function toggleMissingOnly() {
+    if (!currentPath) {
+        alert(lang.no_game_dir);
+        return;
+    }
+    showMissingOnly = !showMissingOnly;
+    var btn = document.getElementById('missing-toggle');
+    btn.textContent = showMissingOnly ? lang.show_all : lang.show_missing_only;
+    applyFilters();
+}
+
+function applyFilters() {
+    if (!currentItems) return;
+    var query = document.getElementById('search-input').value.trim().toLowerCase();
+    var filtered = currentItems.filter(function(item) {
+        if (item.is_dir) return true;
+        if (showMissingOnly && item.preview) return false;
+        if (query) {
+            return item.name.toLowerCase().includes(query) ||
+                   (item.console && item.console.toLowerCase().includes(query));
+        }
+        return true;
+    });
+    renderItems(filtered);
 }
 
 function shutdownServer() {

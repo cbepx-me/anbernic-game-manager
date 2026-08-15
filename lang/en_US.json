@@ -1,7 +1,11 @@
 {
+    "Loading...": "Loading...",
+    "Show missing preview": "Show missing preview",
+    "Show all": "Show all",
+    "Reset": "Reset",
     "Operation in progress, please wait...": "Operation in progress, please wait...",
     "About": "About",
-    "About Info": "Anbernic game management v{version}\nIs a web management tool designed for Anbernic handheld consoles, allowing you to easily manage your game library through a browser.\n\nMain features include:\n\uD83D\uDCC1 Browse / Upload / Delete Game ROMs\n\uD83D\uDDBC\uFE0F Scrape cover images (ScreenScraper) individually or in batch\n✏\uFE0F Rename games and preview images\n\uD83D\uDCC4 Upload game guides (.txt)\n\uD83D\uDCBE Switch between dual SD cards and view storage space in real-time\n\uD83C\uDF0D Multi-language interface (supports Simplified Chinese, English, etc.)\n\nAuthor: G.R.H\nOpen-source project, welcome to improve and provide feedback.",
+    "About Info": "Anbernic game management v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\nIs a web management tool designed for Anbernic handheld consoles, allowing you to easily manage your game library through a browser.\n\nMain features include:\n\uD83D\uDCC1 Browse / Upload / Delete Game ROMs\n\uD83D\uDDBC\uFE0F Scrape cover images (ScreenScraper) individually or in batch\n✏\uFE0F Rename games and preview images\n\uD83D\uDCC4 Upload game guides (.txt)\n\uD83D\uDCBE Switch between dual SD cards and view storage space in real-time\n\uD83C\uDF0D Multi-language interface (supports Simplified Chinese, English, etc.)\n\nAuthor: G.R.H\nOpen-source project, welcome to improve and provide feedback.",
     "Backup Save": "Backup Save",
     "Restore Save": "Restore Save",
     "Backup all save data for all games?": "Backup all save data for all games?",

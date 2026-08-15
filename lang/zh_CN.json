@@ -1,7 +1,11 @@
 {
+    "Loading...": "加载中...",
+    "Show missing preview": "显示缺图游戏",
+    "Show all": "显示全部",
+    "Reset": "重置",
     "Operation in progress, please wait...": "操作正在进行，请稍候...",
     "About": "关于",
-    "About Info": "Anbernic 游戏管理工具 v{version}\n是一个为 Anbernic 掌机设计的 Web 管理工具，您可以通过浏览器轻松管理您的游戏库。\n\n主要功能包括：\n\uD83D\uDCC1 浏览 / 上传 / 删除游戏 ROM\n\uD83D\uDDBC\uFE0F 单独或批量刮削封面图片（ScreenScraper）\n✏\uFE0F 重命名游戏和预览图\n\uD83D\uDCC4 上传游戏攻略（.txt）\n\uD83D\uDCBE 在双 SD 卡之间切换并实时查看存储空间\n\uD83C\uDF0D 多语言界面（支持简体中文、英文等）\n\n作者：G.R.H\n开源项目，欢迎改进和反馈。",
+    "About Info": "Anbernic 游戏管理工具 v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\n是一个为 Anbernic 掌机设计的 Web 管理工具，您可以通过浏览器轻松管理您的游戏库。\n\n主要功能包括：\n\uD83D\uDCC1 浏览 / 上传 / 删除游戏 ROM\n\uD83D\uDDBC\uFE0F 单独或批量刮削封面图片（ScreenScraper）\n✏\uFE0F 重命名游戏和预览图\n\uD83D\uDCC4 上传游戏攻略（.txt）\n\uD83D\uDCBE 在双 SD 卡之间切换并实时查看存储空间\n\uD83C\uDF0D 多语言界面（支持简体中文、英文等）\n\n作者：G.R.H\n开源项目，欢迎改进和反馈。",
     "Backup Save": "备份存档",
     "Restore Save": "恢复存档",
     "Backup all save data for all games?": "是否备份所有游戏的全部存档数据？",

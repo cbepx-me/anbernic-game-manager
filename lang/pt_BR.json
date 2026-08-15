@@ -1,7 +1,11 @@
 {
+    "Loading...": "A carregar...",
+    "Show missing preview": "Mostrar visualizações em falta",
+    "Show all": "Mostrar tudo",
+    "Reset": "Redefinir",
     "Operation in progress, please wait...": "Operação em andamento, aguarde...",
     "About": "Sobre",
-    "About Info": "Anbernic game management v{version}\né uma ferramenta de gerenciamento Web projetada para consoles portáteis Anbernic, permitindo que você gerencie facilmente sua biblioteca de jogos através de um navegador.\n\nPrincipais recursos:\n\uD83D\uDCC1 Navegar / Enviar / Excluir ROMs de jogos\n\uD83D\uDDBC\uFE0F Escanear imagens de capa (ScreenScraper) individualmente ou em lote\n✏\uFE0F Renomear jogos e imagens de visualização\n\uD83D\uDCC4 Enviar guias de jogos (.txt)\n\uD83D\uDCBE Alternar entre dois cartões SD e visualizar espaço de armazenamento em tempo real\n\uD83C\uDF0D Interface multilíngue (suporta chinês simplificado, inglês, etc.)\n\nAutor: G.R.H\nProjeto de código aberto, melhorias e feedback são bem-vindos.",
+    "About Info": "Anbernic game management v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\né uma ferramenta de gerenciamento Web projetada para consoles portáteis Anbernic, permitindo que você gerencie facilmente sua biblioteca de jogos através de um navegador.\n\nPrincipais recursos:\n\uD83D\uDCC1 Navegar / Enviar / Excluir ROMs de jogos\n\uD83D\uDDBC\uFE0F Escanear imagens de capa (ScreenScraper) individualmente ou em lote\n✏\uFE0F Renomear jogos e imagens de visualização\n\uD83D\uDCC4 Enviar guias de jogos (.txt)\n\uD83D\uDCBE Alternar entre dois cartões SD e visualizar espaço de armazenamento em tempo real\n\uD83C\uDF0D Interface multilíngue (suporta chinês simplificado, inglês, etc.)\n\nAutor: G.R.H\nProjeto de código aberto, melhorias e feedback são bem-vindos.",
     "Backup Save": "Backup de saves",
     "Restore Save": "Restaurar saves",
     "Backup all save data for all games?": "Fazer backup de todos os dados de salvamento de todos os jogos?",

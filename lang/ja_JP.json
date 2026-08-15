@@ -1,7 +1,11 @@
 {
+    "Loading...": "読み込み中...",
+    "Show missing preview": "プレビュー欠落を表示",
+    "Show all": "すべて表示",
+    "Reset": "リセット",
     "Operation in progress, please wait...": "操作中です。しばらくお待ちください...",
     "About": "このソフトについて",
-    "About Info": "Anbernic ゲーム管理ツール v{version}\nは、Anbernic ハンドヘルドコンソール向けの Web 管理ツールで、ブラウザーから簡単にゲームライブラリを管理できます。\n\n主な機能：\n\uD83D\uDCC1 ゲーム ROM の参照 / アップロード / 削除\n\uD83D\uDDBC\uFE0F カバー画像のスクレイピング（ScreenScraper）を個別または一括で実行\n✏\uFE0F ゲーム名とプレビュー画像の変更\n\uD83D\uDCC4 ゲームガイド（.txt）のアップロード\n\uD83D\uDCBE デュアル SD カードの切り替えとリアルタイムのストレージ確認\n\uD83C\uDF0D 多言語インターフェース（中国語・英語など対応）\n\n著者：G.R.H\nオープンソースプロジェクト、改善やフィードバックをお待ちしています。",
+    "About Info": "Anbernic ゲーム管理ツール v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\nは、Anbernic ハンドヘルドコンソール向けの Web 管理ツールで、ブラウザーから簡単にゲームライブラリを管理できます。\n\n主な機能：\n\uD83D\uDCC1 ゲーム ROM の参照 / アップロード / 削除\n\uD83D\uDDBC\uFE0F カバー画像のスクレイピング（ScreenScraper）を個別または一括で実行\n✏\uFE0F ゲーム名とプレビュー画像の変更\n\uD83D\uDCC4 ゲームガイド（.txt）のアップロード\n\uD83D\uDCBE デュアル SD カードの切り替えとリアルタイムのストレージ確認\n\uD83C\uDF0D 多言語インターフェース（中国語・英語など対応）\n\n著者：G.R.H\nオープンソースプロジェクト、改善やフィードバックをお待ちしています。",
     "Backup Save": "セーブデータのバックアップ",
     "Restore Save": "セーブデータの復元",
     "Backup all save data for all games?": "すべてのゲームのセーブデータをバックアップしますか？",

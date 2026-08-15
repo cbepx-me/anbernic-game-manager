@@ -20,7 +20,7 @@ from language import Translator
 from name_converter import name_converter
 
 # 版本
-ver = "1.1.0"
+ver = "1.1.1"
 
 # 全局设备信息
 board_info = "Unknown"
@@ -315,23 +315,26 @@ def get_subdirs():
             continue
         full = os.path.join(rom_root, item)
         if os.path.isdir(full) and not item.startswith('.') and item != PREVIEW_DIR_NAME:
-            has_games = False
+            # 统计游戏文件数量
+            game_count = 0
             for root, _, files in os.walk(full):
+                # 跳过 Imgs 目录
                 if PREVIEW_DIR_NAME in root.split(os.sep):
                     continue
                 for f in files:
-                    if not f.startswith('.'):
-                        has_games = True
-                        break
-                if has_games:
-                    break
+                    if f.startswith('.'):
+                        continue
+                    # 检测是否为游戏文件（扩展名匹配）
+                    if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
+                        game_count += 1
             dirs.append({
                 'name': item,
                 'path': item,
-                'has_games': has_games
+                'has_games': game_count > 0,
+                'game_count': game_count   # 新增字段
             })
     dirs.sort(key=lambda x: x['name'].lower())
-    print(f"[DEBUG] get_subdirs found {len(dirs)} directories: {[d['name'] for d in dirs]}")
+    print(f"[DEBUG] get_subdirs found {len(dirs)} directories")
     return dirs
 
 def get_files_in_dir(subdir, lang=None):
@@ -658,6 +661,20 @@ def scrape_preview():
     # 2. 获取游戏原始名称（不含扩展名）
     game_name = os.path.splitext(os.path.basename(game_full_path))[0]
 
+    if system_name == "PICO":
+        try:
+            target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
+            os.makedirs(target_dir, exist_ok=True)
+            preview_filename = game_name + '.png'
+            preview_path = os.path.join(target_dir, preview_filename)
+            shutil.copy(game_full_path, preview_path)
+        except Exception as e:
+            return jsonify({'error': f'Scraping failed: {str(e)}'}), 500
+        return jsonify({
+        'success': True,
+        'preview_path': os.path.relpath(preview_path, rom_root)
+    })
+
     # 3. 计算 CRC
     rom_obj = Rom(name=game_name, filename=game_rel_path)
     try:
@@ -746,6 +763,19 @@ def batch_scrape():
         game_rel_path = file_info['path']
         game_full_path = os.path.join(rom_root, game_rel_path)
         original_game_name = os.path.splitext(os.path.basename(game_full_path))[0]
+
+        if system_name == "PICO":
+            try:
+                target_dir_preview = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
+                os.makedirs(target_dir_preview, exist_ok=True)
+                preview_filename = original_game_name + '.png'
+                preview_path = os.path.join(target_dir_preview, preview_filename)
+                shutil.copy(game_full_path, preview_path)
+                success_count += 1
+            except Exception as e:
+                print(f"Save preview failed for {original_game_name}: {e}")
+                failed_count += 1
+            continue
 
         # 计算 CRC
         rom_obj = Rom(name=original_game_name, filename=game_rel_path)

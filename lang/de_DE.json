@@ -1,7 +1,11 @@
 {
+    "Loading...": "Laden...",
+    "Show missing preview": "Fehlende Vorschauen anzeigen",
+    "Show all": "Alle anzeigen",
+    "Reset": "Zurücksetzen",
     "Operation in progress, please wait...": "Vorgang läuft, bitte warten...",
     "About": "Info",
-    "About Info": "Anbernic game management v{version}\nist ein Webverwaltungstool für Anbernic-Handhelds, mit dem Sie Ihre Spielesammlung bequem über einen Browser verwalten können.\n\nHauptfunktionen:\n\uD83D\uDCC1 ROMs durchsuchen / hochladen / löschen\n\uD83D\uDDBC\uFE0F Coverbilder einzeln oder im Stapel scrapen (ScreenScraper)\n✏\uFE0F Spiele und Vorschaubilder umbenennen\n\uD83D\uDCC4 Spielanleitungen (.txt) hochladen\n\uD83D\uDCBE Zwischen zwei SD-Karten wechseln und Speicherplatz in Echtzeit anzeigen\n\uD83C\uDF0D Mehrsprachige Oberfläche (unterstützt Chinesisch vereinfacht, Englisch usw.)\n\nAutor: G.R.H\nOpen-Source-Projekt, Verbesserungen und Feedback sind willkommen.",
+    "About Info": "Anbernic game management v{version}\n\nhttps://github.com/cbepx-me/anbernic-game-manager\n\nist ein Webverwaltungstool für Anbernic-Handhelds, mit dem Sie Ihre Spielesammlung bequem über einen Browser verwalten können.\n\nHauptfunktionen:\n\uD83D\uDCC1 ROMs durchsuchen / hochladen / löschen\n\uD83D\uDDBC\uFE0F Coverbilder einzeln oder im Stapel scrapen (ScreenScraper)\n✏\uFE0F Spiele und Vorschaubilder umbenennen\n\uD83D\uDCC4 Spielanleitungen (.txt) hochladen\n\uD83D\uDCBE Zwischen zwei SD-Karten wechseln und Speicherplatz in Echtzeit anzeigen\n\uD83C\uDF0D Mehrsprachige Oberfläche (unterstützt Chinesisch vereinfacht, Englisch usw.)\n\nAutor: G.R.H\nOpen-Source-Projekt, Verbesserungen und Feedback sind willkommen.",
     "Backup Save": "Sicherung der Spielstände",
     "Restore Save": "Spielstände wiederherstellen",
     "Backup all save data for all games?": "Alle Spielstände aller Spiele sichern?",
