@@ -230,7 +230,7 @@ device = Anbernic()
 translator = Translator(system_lang)
 ARCADE_SYSTEMS = {
     "ATOMISWAVE", "CPS1", "CPS2", "CPS3", "FBNEO",
-    "HBMAME", "MAME", "NAOMI", "NEOGEO", "PGM2", "VARCADE"
+    "HBMAME", "MAME", "NAOMI", "NEOGEO", "OEM_GAME", "PGM2", "VARCADE"
 }
 RENAME_BLACKLIST = ARCADE_SYSTEMS | {"DOS", "EASYRPG", "ONS", "SCUMMVM"}
 current_sd = 1  # 默认使用 SD1
