@@ -117,6 +117,10 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 <img width="1858" height="1224" alt="屏幕截图 2026-08-16 115551" src="https://github.com/user-attachments/assets/a68b8498-010d-4620-ba3b-d47091cc9d12" />
 
 Main dashboard – browse games, view previews, and manage files.
+<div align="center">
+<img width="400" height="1000" alt="82c0fdc6867d16ceba058a59cfd01298" src="https://github.com/user-attachments/assets/f252aa3c-ded7-46f1-a80e-f6558745dc34" />
+</div>
+Mobile main interface – browse games, view details, and manage files on the go.
 
 ---
 
