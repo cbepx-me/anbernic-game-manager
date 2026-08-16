@@ -37,7 +37,8 @@ Easily manage your ROMs, scrape box art, backup/restore save data, upload game g
 
 This tool is specifically designed for **all open‑source handheld devices powered by the H700 CPU**, commonly found in recent Anbernic models. It has been tested and verified on:
 
-- **Supported devices** (H700‑based): RG35XX Plus, RG35XX H, RG35XX SP, RG40XX H, RG40XX V, RG CubeXX, and other H700‑based handhelds.
+- **Supported devices I** (H700‑based): RG35XX Plus, RG35XX H, RG35XX SP, RG40XX H, RG40XX V, RG CubeXX, and other H700‑based handhelds.
+- **Supported devices II** (RK3568‑based): RGdsX, and other RK3568‑based handhelds.
 - **Supported operating systems**: Stock OS (the official firmware) and [Stock OS MOD](https://github.com/cbepx-me/Anbernic-H700-RG-xx-StockOS-Modification) (community‑modified versions based on the original firmware).
 
 > **Note**: While it may work on other Linux‑based handhelds with similar directory structures, full compatibility is only guaranteed on H700 devices running Stock OS or Stock OS MOD.
