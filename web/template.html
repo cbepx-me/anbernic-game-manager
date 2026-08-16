@@ -7,7 +7,15 @@
     <style>
         * { box-sizing: border-box; }
         body { margin:0; font-family: sans-serif; display:flex; height:100vh; background:#1e1e2e; color:#cdd6f4; }
-        #sidebar { width:40%; background:#181825; overflow-y:auto; border-right:2px solid #313244; display:flex; flex-direction:column; }
+        #sidebar {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            width: 40%;
+            border-right: 2px solid #313244;
+            background: #181825;
+        }
         #toolbar { padding:10px; background:#313244; border-bottom:1px solid #45475a; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
         #toolbar select, #toolbar button { background:#45475a; color:#cdd6f4; border:1px solid #585b70; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.9rem; }
         #toolbar button:hover { background:#585b70; }
@@ -26,12 +34,51 @@
             overflow-x: auto;
             white-space: nowrap;
         }
+        #loading-indicator {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #a6adc8;
+            font-size: 1rem;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #loading-indicator.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 4px solid #45475a;
+            border-top-color: #89b4fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #game-list {
+            flex: 1;
+            overflow-y: auto;
+            display: block;
+            padding: 5px;
+        }
+
+        #game-list.hidden {
+            display: none;
+        }
         #search-bar { padding:5px 10px 3px 10px; background:#181825; border-bottom:1px solid #313244; }
         #search-input { width:100%; background:#45475a; color:#cdd6f4; border:1px solid #585b70; padding:6px 12px; border-radius:6px; outline:none; font-size:1rem; }
         #search-input:focus { border-color:#89b4fa; }
         #search-input:disabled { opacity:0.5; }
         #search-result { padding:3px 10px 5px 10px; background:#181825; color:#a6adc8; font-size:0.85em; border-bottom:1px solid #313244; }
-        #game-list { flex:1; overflow-y:auto; padding:5px; }
         .dir-item, .file-item { padding:10px 12px; cursor:pointer; border-bottom:1px solid #313244; display:flex; justify-content:space-between; align-items:center; min-height:44px; }
         .dir-item:hover, .file-item:hover { background:#313244; }
         .dir-item.active, .file-item.active { background:#89b4fa; color:#1e1e2e; }
@@ -43,6 +90,13 @@
         #preview-img { max-width:100%; max-height:400px; border-radius:8px; object-fit:contain; display:block; }
         #no-preview { display:none; }
         #detail { background:#181825; padding:15px; border-radius:12px; border:1px solid #313244; }
+        #detail .btn:disabled,
+        #detail .btn-secondary:disabled,
+        #detail .btn-danger:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         .btn { background:#89b4fa; color:#1e1e2e; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; margin-right:8px; font-weight:bold; font-size:0.95rem; }
         .btn-danger { background:#f38ba8; color:#1e1e2e; }
         .btn-secondary { background:#45475a; color:#cdd6f4; }
@@ -53,6 +107,14 @@
         .info-line { margin:4px 0; font-size:0.95rem; }
         #breadcrumb { color:#a6adc8; font-size:0.9em; margin-left:10px; cursor:pointer; }
         #breadcrumb:hover { text-decoration:underline; }
+        .status-tag {
+            font-size: 0.75rem;
+            margin-left: 4px;
+            display: inline-block;
+            width: 1.2em;
+            text-align: center;
+            flex-shrink: 0;
+        }
         #storage-info {
             padding: 8px 12px;
             background: #313244;
@@ -89,7 +151,6 @@
         }
         #upload-modal h3 { margin-top:0; }
         #upload-modal input[type="file"] { width:100%; }
-
         #extra-actions {
             margin-top: 12px;
             padding: 8px 0;
@@ -121,8 +182,25 @@
 
         /* ========== 手机响应样式 ========== */
         @media screen and (max-width: 768px) {
+            .file-item {
+                padding: 8px 6px;
+                font-size: 0.8rem;
+            }
+            .status-tag {
+                font-size: 0.65rem;
+                margin-left: 2px;
+                width: 1em;
+            }
+            .file-size {
+                font-size: 0.65rem;
+                margin-left: 4px;
+            }
+            .console-tag {
+                font-size: 0.6rem;
+                padding: 1px 4px;
+            }
             body { flex-direction: column; }
-            #sidebar { width:100%; height:55vh; border-right:none; border-bottom:2px solid #313244; }
+            #sidebar { width:100%; height:55vh; overflow: hidden; border-right:none; border-bottom:2px solid #313244; }
             #main { height:45vh; padding:10px; }
             #preview-container {
                 min-height:0;
@@ -166,6 +244,13 @@
         }
 
         @media screen and (max-width: 480px) {
+            .file-size {
+                display: none;
+            }
+            .status-tag {
+                font-size: 0.6rem;
+                margin-left: 1px;
+            }
             #sidebar { height:50vh; }
             #main { height:50vh; padding:6px; }
             #preview-img { max-height:18vh; }
@@ -185,8 +270,8 @@
         </select>
         <button onclick="loadDirs()">{{ _('Reset') }}</button>
         <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn-secondary">{{ _('Show missing preview') }}</button>
-        <button onclick="showUpload()" class="btn-secondary">{{ _('Upload game') }}</button>
-        <button onclick="batchScrape(this)" class="btn-secondary">{{ _('Batch scrape') }}</button>
+        <button onclick="batchScrape(this)" id="batch-scrape" class="btn-secondary">{{ _('Batch scrape') }}</button>
+        <button onclick="showUpload()" id="upload-game" class="btn-secondary">{{ _('Upload game') }}</button>
         <button onclick="shutdownServer()" class="btn-danger">{{ _('Shutdown server') }}</button>
         <span id="breadcrumb"></span>
     </div>
@@ -194,24 +279,26 @@
         <input type="text" id="search-input" placeholder="{{ _('Search...') }}" oninput="filterItems(this.value)">
     </div>
     <div id="search-result"></div>
-    <div id="loading-indicator" style="display:none; padding:20px; text-align:center; color:#a6adc8; font-size:0.9rem;">
+        <div id="loading-indicator">
+        <div class="spinner"></div>
         <span>{{ _('Loading...') }}</span>
     </div>
     <div id="game-list"></div>
 </div>
 <div id="main">
     <div id="detail">
-        <div id="detail-content">{{ _('Select a game') }}</div>
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-secondary" onclick="selectPreviewFile()">{{ _('Update preview') }}</button>
+            <button id="scrape-preview-input" class="btn btn-secondary" onclick="scrapePreview(this)">{{ _('Scrape preview') }}</button>
+            <button id="update-preview-btn" class="btn btn-secondary" onclick="selectPreviewFile()">{{ _('Upload preview') }}</button>
             <input type="file" id="update-preview-input" accept="image/*" style="display:none;" onchange="updatePreview()">
-            <button class="btn btn-secondary" onclick="scrapePreview(this)">{{ _('Scrape preview') }}</button>
-            <button class="btn btn-secondary" onclick="renameCurrent()">{{ _('Rename game') }}</button>
-            <button class="btn btn-secondary" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
+            <button id="upload-guide-btn" class="btn btn-secondary" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
             <input type="file" id="guide-input" accept=".txt" style="display:none;" onchange="uploadGuide()">
-            <button class="btn btn-danger" onclick="deletePreview()">{{ _('Delete preview') }}</button>
-            <button class="btn btn-danger" onclick="deleteCurrent()">{{ _('Delete game') }}</button>
+            <button id="rename-game-input" class="btn btn-secondary" onclick="renameCurrent()">{{ _('Rename game') }}</button>
+            <button id="delete-preview-btn" class="btn btn-danger" onclick="deletePreview()">{{ _('Delete preview') }}</button>
+            <button id="delete-guide-btn" class="btn btn-danger" onclick="deleteGuide()">{{ _('Delete guide') }}</button>
+            <button id="delete-game-btn" class="btn btn-danger" onclick="deleteCurrent()">{{ _('Delete game') }}</button>
         </div>
+        <div id="detail-content" style="margin-top:12px;">{{ _('Select a game') }}</div>
     </div>
     <div id="preview-container">
         <img id="preview-img" src="" alt="{{ _('Preview') }}">
@@ -260,7 +347,7 @@ var lang = {
     restore_save: {{ _('Restore Save')|tojson }},
     backup_save_confirm: {{ _('Backup all save data for all games?')|tojson }},
     backup_save_starting: {{ _('Backup started...')|tojson }},
-    backup_save_success: {{ _('Backup file downloaded successfully')|tojson }},
+    backup_save_success: {{ _('Backup successful')|tojson }},
     backup_save_failed: {{ _('Backup failed: {error}')|tojson }},
     restore_save_prompt: {{ _('Select a backup file (.tar.gz) to restore')|tojson }},
     restore_save_confirm: {{ _('This will overwrite all current save data. Continue?')|tojson }},
@@ -287,17 +374,21 @@ var lang = {
     delete_preview_confirm: {{ _('Delete preview image for "{name}"?')|tojson }},
     delete_preview_success: {{ _('Preview image deleted')|tojson }},
     no_preview_to_delete: {{ _('No preview image to delete')|tojson }},
+    no_guide_to_delete: {{ _('No guide file to delete')|tojson }},
+    delete_guide_confirm: {{ _('Delete guide for "{name}"?')|tojson }},
+    delete_guide_success: {{ _('Guide deleted successfully')|tojson }},
     no_preview: {{ _('No preview')|tojson }},
     total_items: {{ _('Total {count} items')|tojson }},
     found_items: {{ _('Found {count} items')|tojson }},
-    delete_confirm: {{ _('Delete "{name}" and its preview?')|tojson }},
+    delete_confirm: {{ _('Delete "{name}", its preview, and its guide?')|tojson }},
     deleted_success: {{ _('Deleted successfully')|tojson }},
     delete_failed: {{ _('Delete failed: {error}')|tojson }},
     unknown_error: {{ _('Unknown error')|tojson }},
     select_game_first: {{ _('Please select a game first')|tojson }},
-    preview_updated: {{ _('Preview updated successfully!')|tojson }},
-    update_failed: {{ _('Update failed: {error}')|tojson }},
-    select_rom: {{ _('Please select at least one file')|tojson }},
+    preview_updated: {{ _('Preview uploaded successfully!')|tojson }},
+    preview_scraping: {{ _('Preview scraping successful!')|tojson }},
+    update_failed: {{ _('Upload failed: {error}')|tojson }},
+    select_rom: {{ _('Please select ROM or preview image')|tojson }},
     enter_target_dir: {{ _('Please enter target directory')|tojson }},
     uploading: {{ _('Uploading...')|tojson }},
     success: {{ _('Success')|tojson }},
@@ -324,16 +415,27 @@ var currentFile = null;
 var currentSd = 1;
 var extraActions = {};
 var showMissingOnly = false;
+var pendingSelectPath = null;
 
 function getPlaceholderImage(text) {
     text = text || 'No Preview';
     return 'data:image/svg+xml,' + encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-            <rect width="200" height="200" fill="#2a2a3a" rx="10"/>
-            <circle cx="100" cy="80" r="30" fill="none" stroke="#6c7086" stroke-width="4"/>
-            <rect x="70" y="110" width="60" height="30" rx="5" fill="none" stroke="#6c7086" stroke-width="4"/>
-            <line x1="80" y1="125" x2="80" y2="140" stroke="#6c7086" stroke-width="4"/>
-            <line x1="120" y1="125" x2="120" y2="140" stroke="#6c7086" stroke-width="4"/>
+            <rect width="200" height="200" fill="#a6adc8" rx="10"/>
+            <g transform="translate(0,200) scale(0.1,-0.1)" fill="#2a2a3a" stroke="none">
+                <path d="M0 1000 l0 -1000 1000 0 1000 0 0 1000 0 1000 -1000 0 -1000 0 0
+        -1000z m1155 537 c203 -95 269 -333 141 -508 -40 -54 -108 -102 -180 -125 -28
+        -9 -53 -18 -55 -20 -2 -2 12 -16 30 -31 30 -25 217 -189 246 -217 9 -8 -77
+        -10 -337 -8 l-350 3 0 470 0 470 223 -3 c219 -3 223 -3 282 -31z"/>
+                <path d="M678 1554 c-5 -4 -8 -209 -8 -455 l0 -448 310 -3 c171 -2 310 -1 309
+        2 0 4 -144 132 -250 221 l-31 27 51 11 c118 25 204 88 252 186 29 60 31 70 27
+        148 -5 100 -29 149 -108 220 -84 76 -133 89 -355 94 -104 3 -193 2 -197 -3z
+        m357 -137 c-49 -45 -108 -99 -130 -119 l-40 -37 52 -52 52 -52 40 34 c21 19
+        40 39 40 44 1 6 -19 28 -44 48 -25 21 -45 42 -45 48 0 6 42 9 108 7 l107 -3 3
+        -152 3 -153 -226 0 -225 0 0 235 0 235 198 0 197 -1 -90 -82z"/>
+                <path d="M750 1260 l0 -210 200 0 200 0 0 130 0 130 -70 0 -70 0 41 -37 42
+        -38 -59 -52 c-33 -29 -61 -53 -64 -53 -3 0 -35 30 -72 68 l-66 67 114 103 115
+        102 -156 0 -155 0 0 -210z"/></g>
             <text x="100" y="175" font-family="sans-serif" font-size="14" fill="#a6adc8" text-anchor="middle">${text}</text>
         </svg>
     `);
@@ -341,12 +443,85 @@ function getPlaceholderImage(text) {
 
 function getSd() { return document.getElementById('sd-select').value; }
 
+function showLoading() {
+    document.getElementById('loading-indicator').classList.add('show');
+    document.getElementById('game-list').classList.add('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('loading-indicator').classList.remove('show');
+    document.getElementById('game-list').classList.remove('hidden');
+}
+
+function updateMissingToggleState() {
+    var btn = document.getElementById('missing-toggle');
+    var btnUpload = document.getElementById('upload-game');
+    var btnBatch = document.getElementById('batch-scrape');
+    if (!currentPath) {
+        btn.disabled = true;
+        btn.title = lang.no_game_dir;
+        btnUpload.disabled = true;
+        btnUpload.title = lang.no_game_dir;
+        btnBatch.disabled = true;
+        btnBatch.title = lang.no_game_dir;
+    } else {
+        btn.disabled = false;
+        btnUpload.disabled = false;
+        btnBatch.disabled = false;
+        btn.title = '';
+        btnUpload.title = '';
+        btnBatch.title = '';
+    }
+}
+
+function updateSelectGameState() {
+    var btn = document.getElementById('update-preview-btn');
+    var btnScrape = document.getElementById('scrape-preview-input');
+    var btnRename = document.getElementById('rename-game-input');
+    var btnGuide = document.getElementById('upload-guide-btn');
+    var btnDeletePreview = document.getElementById('delete-preview-btn');
+    var btnDeleteGuide = document.getElementById('delete-guide-btn');
+    var btnDeleteGame = document.getElementById('delete-game-btn');
+
+    if (!currentFile) {
+        btn.disabled = true;
+        btn.title = lang.no_game_selected;
+        btnScrape.disabled = true;
+        btnScrape.title = lang.no_game_selected;
+        btnRename.disabled = true;
+        btnRename.title = lang.no_game_selected;
+        btnGuide.disabled = true;
+        btnGuide.title = lang.no_game_selected;
+        btnDeletePreview.disabled = true;
+        btnDeletePreview.title = lang.no_game_selected;
+        btnDeleteGuide.disabled = true;
+        btnDeleteGuide.title = lang.no_game_selected;
+        btnDeleteGame.disabled = true;
+        btnDeleteGame.title = lang.no_game_selected;
+    } else {
+        btn.disabled = false;
+        btnScrape.disabled = false;
+        btnRename.disabled = false;
+        btnGuide.disabled = false;
+        btnDeletePreview.disabled = false;
+        btnDeleteGuide.disabled = false;
+        btnDeleteGame.disabled = false;
+        btn.title = '';
+        btnScrape.title = '';
+        btnRename.title = '';
+        btnGuide.title = '';
+        btnDeletePreview.title = '';
+        btnDeleteGuide.title = '';
+        btnDeleteGame.title = '';
+    }
+}
+
 function loadDirs() {
     showMissingOnly = false;
+    pendingSelectPath = null;
     document.getElementById('missing-toggle').textContent = lang.show_missing_only;
     document.getElementById('search-input').value = '';
-    document.getElementById('loading-indicator').style.display = 'block';
-    document.getElementById('game-list').innerHTML = '';
+    showLoading();
 
     var sd = getSd();
     fetch('/api/sd', {
@@ -363,8 +538,7 @@ function loadDirs() {
             fetch('/api/dirs')
             .then(function(response) { return response.json(); })
             .then(function(dirs) {
-                document.getElementById('game-list').innerHTML = '';
-                document.getElementById('loading-indicator').style.display = 'none';
+                hideLoading();
                 var list = document.getElementById('game-list');
                 list.innerHTML = '';
                 currentPath = '';
@@ -376,23 +550,44 @@ function loadDirs() {
                     var dir = dirs[i];
                     var div = document.createElement('div');
                     div.className = 'dir-item';
-                    var countText = dir.game_count > 0 ? ' [' + dir.game_count + ']' : '';
-                    div.textContent = dir.name + countText;
+                    var nameSpan = document.createElement('span');
+                    nameSpan.textContent = '📁 ' + dir.name;
+                    div.appendChild(nameSpan);
+
+                    if (dir.game_count > 0) {
+                        var countSpan = document.createElement('span');
+                        countSpan.textContent = '[' + dir.preview_count + '/' + dir.game_count + ']';
+                        countSpan.style.marginLeft = 'auto';
+                        if (dir.preview_count < dir.game_count) {
+                            countSpan.style.color = '#f38ba8';
+                        } else {
+                            countSpan.style.color = '#a6e3a1';
+                        }
+                        countSpan.style.fontSize = '1.0em';
+                        div.appendChild(countSpan);
+                    }
                     div.dataset.path = dir.path;
                     div.onclick = (function(d) { return function() { enterDir(d.path); }; })(dir);
                     list.appendChild(div);
                 }
+                list.scrollTop = 0;
                 currentItems = [];
+                updateMissingToggleState()
+                updateSelectGameState()
             })
             .catch(function(err) {
                 console.error('dirs error', err);
-                document.getElementById('loading-indicator').style.display = 'none';
+                hideLoading();
+                updateMissingToggleState()
+                updateSelectGameState()
             });
         }
     })
     .catch(function(err) {
         console.error('sd error', err);
-        document.getElementById('loading-indicator').style.display = 'none';
+        hideLoading();
+        updateMissingToggleState();
+        updateSelectGameState();
     });
 }
 
@@ -406,7 +601,7 @@ function enterDir(path) {
         document.getElementById('breadcrumb').textContent = '';
     } else {
         var displayPath = currentPath.replace(/\//g, ' / ');
-        document.getElementById('breadcrumb').textContent = '📁 ' + displayPath + ' ({{ _("Back to parent") }})';
+        document.getElementById('breadcrumb').textContent = '⬆ 📁 ' + displayPath + ' ({{ _("Back to parent") }})';
         document.getElementById('breadcrumb').onclick = function() {
             if (currentPath.includes('/')) {
                 var parent = currentPath.substring(0, currentPath.lastIndexOf('/'));
@@ -417,20 +612,28 @@ function enterDir(path) {
         };
     }
     document.getElementById('search-result').textContent = '';
-    document.getElementById('game-list').innerHTML = '';
-    document.getElementById('loading-indicator').style.display = 'block';
+    showLoading();
 
     fetch('/api/files?dir=' + encodeURIComponent(currentPath) + '&lang=' + encodeURIComponent(currentLang))
     .then(function(response) { return response.json(); })
     .then(function(items) {
-        document.getElementById('loading-indicator').style.display = 'none';
+        hideLoading();
         currentItems = items;
         applyFilters();
-        clearDetail();
+        updateMissingToggleState()
+
+        if (pendingSelectPath) {
+            var found = currentItems.find(function(item) { return !item.is_dir && item.path === pendingSelectPath; });
+            if (found) {
+                selectFile(found);
+            }
+            pendingSelectPath = null;
+        }
     })
     .catch(function(err) {
-        dconsole.error('files error', err);
-        ocument.getElementById('loading-indicator').style.display = 'none';
+        console.error('files error', err);
+        hideLoading();
+        updateMissingToggleState();
     });
 }
 
@@ -456,25 +659,66 @@ function renderItems(items) {
         var item = items[i];
         var div = document.createElement('div');
         div.className = item.is_dir ? 'dir-item' : 'file-item';
+        if (!item.is_dir && currentFile && item.path === currentFile.path) {
+            div.classList.add('active');
+        }
         if (item.is_dir) {
             var nameSpan = document.createElement('span');
             nameSpan.textContent = '📁 ' + item.name;
             div.appendChild(nameSpan);
+
+            if (item.game_count > 0) {
+                var countSpan = document.createElement('span');
+                countSpan.textContent = '[' + item.preview_count + '/' + item.game_count + ']';
+                countSpan.style.marginLeft = 'auto';
+                if (item.preview_count < item.game_count) {
+                    countSpan.style.color = '#f38ba8';
+                } else {
+                    countSpan.style.color = '#a6e3a1';
+                }
+                countSpan.style.fontSize = '1.0em';
+                div.appendChild(countSpan);
+            }
+
             div.onclick = (function(it) { return function() { enterDir(it.path); }; })(item);
         } else {
             var nameSpan = document.createElement('span');
             nameSpan.textContent = '🎮 ' + item.name;
+            nameSpan.style.flex = '1';
+            nameSpan.style.minWidth = '0';
+            nameSpan.style.overflow = 'hidden';
+            nameSpan.style.textOverflow = 'ellipsis';
+            nameSpan.style.whiteSpace = 'nowrap';
+            nameSpan.style.marginRight = '8px';
+
             var ext = item.path.split('.').pop().toLowerCase();
             var extSpan = document.createElement('span');
             extSpan.className = 'console-tag';
             extSpan.textContent = '.' + ext;
+            extSpan.style.flexShrink = '0';
+
+            var previewSpan = document.createElement('span');
+            previewSpan.className = 'status-tag';
+            previewSpan.textContent = item.preview ? '🖼️' : '❌';
+            previewSpan.style.color = item.preview ? '#a6e3a1' : '#6c7086';
+            previewSpan.style.flexShrink = '0';
+
+            var guideSpan = document.createElement('span');
+            guideSpan.className = 'status-tag';
+            guideSpan.textContent = item.guide_exists ? '📄' : '❌';
+            guideSpan.style.color = item.guide_exists ? '#89b4fa' : '#6c7086';
+            guideSpan.style.flexShrink = '0';
+
             var sizeSpan = document.createElement('span');
             sizeSpan.className = 'file-size';
             sizeSpan.textContent = (item.size / 1024).toFixed(1) + 'KB';
+            sizeSpan.style.flexShrink = '0';
+            sizeSpan.style.marginLeft = '8px';
+
             div.appendChild(nameSpan);
-            if (ext){
-                div.appendChild(extSpan);
-            }
+            div.appendChild(extSpan);
+            div.appendChild(previewSpan);
+            div.appendChild(guideSpan);
             div.appendChild(sizeSpan);
             div.dataset.path = item.path;
             div.onclick = (function(f) { return function() { selectFile(f); }; })(item);
@@ -489,6 +733,7 @@ function renderItems(items) {
     } else {
         countEl.textContent = lang.found_items.replace('{count}', count);
     }
+    document.getElementById('game-list').scrollTop = 0;
 }
 
 function filterItems(query) {
@@ -540,15 +785,26 @@ function selectFile(file) {
             div.textContent = line.label + line.value;
         }
         detail.appendChild(div);
+    updateSelectGameState()
     }
 }
 
 function clearDetail() {
-    document.getElementById('detail-content').textContent = '{{ _("Select a game") }}';
+    var detailEl = document.getElementById('detail-content');
+    detailEl.innerHTML = '';
+    detailEl.textContent = '{{ _("Select a game") }}';
     var img = document.getElementById('preview-img');
     img.src = getPlaceholderImage(lang.no_preview);
     img.style.display = 'block';
     document.getElementById('no-preview').style.display = 'none';
+    updateSelectGameState();
+}
+
+function updateCurrentItem(path, updates) {
+    var idx = currentItems.findIndex(function(item) { return item.path === path; });
+    if (idx !== -1) {
+        Object.assign(currentItems[idx], updates);
+    }
 }
 
 function deletePreview() {
@@ -567,6 +823,36 @@ function deletePreview() {
         if (data.success) {
             alert(lang.delete_preview_success);
             currentFile.preview = null;
+            updateCurrentItem(currentFile.path, { preview: null });
+            applyFilters();
+            selectFile(currentFile);
+        } else {
+            alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
+        }
+    })
+    .catch(function(err) {
+        alert(lang.network_error);
+    });
+}
+
+function deleteGuide() {
+    if (!currentFile) {
+        alert(lang.select_game_first);
+        return;
+    }
+    if (!currentFile.guide_exists) {
+        alert(lang.no_guide_to_delete);
+        return;
+    }
+    if (!confirm(lang.delete_guide_confirm.replace('{name}', currentFile.name))) return;
+    fetch('/api/delete_guide?path=' + encodeURIComponent(currentFile.path), { method: 'DELETE' })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert(lang.delete_guide_success);
+            currentFile.guide_exists = false;
+            updateCurrentItem(currentFile.path, { guide_exists: false });
+            applyFilters();
             selectFile(currentFile);
         } else {
             alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
@@ -594,6 +880,7 @@ function deleteCurrent() {
         } else {
             alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
         }
+        updateSelectGameState()
     });
 }
 
@@ -611,7 +898,7 @@ function updatePreview() {
     formData.append('path', currentFile.path);
     formData.append('image', file);
 
-    var btn = document.querySelector('#detail .btn-secondary');
+    var btn = document.getElementById('update-preview-btn');
     var originalText = btn.textContent;
     btn.textContent = lang.uploading;
     btn.disabled = true;
@@ -619,7 +906,7 @@ function updatePreview() {
     var overlay = document.getElementById('global-overlay');
     overlay.style.display = 'flex';
     var textEl = document.getElementById('global-overlay-text');
-    textEl.textContent = '⏳ ' + lang.progres_ing;
+    textEl.textContent = '⏳ ' + lang.uploading;
 
     fetch('/api/update_preview', { method: 'POST', body: formData })
     .then(function(response) { return response.json(); })
@@ -627,6 +914,8 @@ function updatePreview() {
         if (data.success) {
             alert(lang.preview_updated);
             currentFile.preview = data.preview_path;
+            updateCurrentItem(currentFile.path, { preview: data.preview_path });
+            applyFilters();
             selectFile(currentFile);
         } else {
             alert(lang.update_failed.replace('{error}', data.error));
@@ -795,7 +1084,7 @@ function scrapePreview(btn) {
     var overlay = document.getElementById('global-overlay');
     overlay.style.display = 'flex';
     var textEl = document.getElementById('global-overlay-text');
-    textEl.textContent = '⏳ ' + lang.progres_ing;
+    textEl.textContent = '⏳ ' + lang.scrapeing;
 
     fetch('/api/scrape_preview', {
         method: 'POST',
@@ -805,8 +1094,10 @@ function scrapePreview(btn) {
     .then(function(response) { return response.json(); })
     .then(function(data) {
         if (data.success) {
-            alert(lang.preview_updated);
+            alert(lang.preview_scraping);
             currentFile.preview = data.preview_path;
+            updateCurrentItem(currentFile.path, { preview: data.preview_path });
+            applyFilters();
             selectFile(currentFile);
         } else {
             alert(lang.update_failed.replace('{error}', data.error || lang.unknown_error));
@@ -837,7 +1128,7 @@ function batchScrape(btn) {
     var overlay = document.getElementById('global-overlay');
     overlay.style.display = 'flex';
     var textEl = document.getElementById('global-overlay-text');
-    textEl.textContent = '⏳ ' + lang.progres_ing;
+    textEl.textContent = '⏳ ' + lang.scrapeing;
 
     fetch('/api/batch_scrape', {
         method: 'POST',
@@ -854,6 +1145,9 @@ function batchScrape(btn) {
         btn.textContent = originalText;
         btn.disabled = false;
         overlay.style.display = 'none';
+        if (currentFile) {
+            pendingSelectPath = currentFile.path;
+        }
         enterDir(currentPath);
     })
     .catch(err => {
@@ -897,7 +1191,6 @@ function renameCurrent() {
     }
     if (!confirm(lang.rename_confirm.replace('{old}', oldName).replace('{new}', newName))) return;
 
-    var btn = document.querySelector('#detail .btn-secondary:not(.btn-danger)');
     fetch('/api/rename', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -953,7 +1246,7 @@ function uploadGuide() {
     formData.append('path', currentFile.path);
     formData.append('guide_file', file);
 
-    var btn = document.querySelector('#detail .btn-secondary:not(.btn-danger)');
+    var btn = document.getElementById('upload-guide-btn');
     var originalText = btn.textContent;
     btn.textContent = lang.uploading;
     btn.disabled = true;
@@ -961,7 +1254,7 @@ function uploadGuide() {
     var overlay = document.getElementById('global-overlay');
     overlay.style.display = 'flex';
     var textEl = document.getElementById('global-overlay-text');
-    textEl.textContent = '⏳ ' + lang.progres_ing;
+    textEl.textContent = '⏳ ' + lang.uploading;
 
     fetch('/api/upload_guide', {
         method: 'POST',
@@ -972,6 +1265,8 @@ function uploadGuide() {
         if (data.success) {
             alert(lang.guide_upload_success || 'Guide uploaded successfully');
             currentFile.guide_exists = true;
+            updateCurrentItem(currentFile.path, { guide_exists: true });
+            applyFilters();
             selectFile(currentFile);
         } else {
             alert((lang.upload_guide_failed || 'Upload guide failed: {error}').replace('{error}', data.error || lang.unknown_error));
@@ -1107,10 +1402,7 @@ function restoreSave() {
 }
 
 function toggleMissingOnly() {
-    if (!currentPath) {
-        alert(lang.no_game_dir);
-        return;
-    }
+    if (!currentPath) return;
     showMissingOnly = !showMissingOnly;
     var btn = document.getElementById('missing-toggle');
     btn.textContent = showMissingOnly ? lang.show_all : lang.show_missing_only;
@@ -1130,6 +1422,16 @@ function applyFilters() {
         return true;
     });
     renderItems(filtered);
+
+    if (currentFile) {
+        var stillExists = filtered.some(function(item) {
+            return !item.is_dir && item.path === currentFile.path;
+        });
+        if (!stillExists) {
+            currentFile = null;
+            clearDetail();
+        }
+    }
 }
 
 function shutdownServer() {

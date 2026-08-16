@@ -15,7 +15,8 @@ color_text = "#ffffff"
 
 screen_resolutions = {
     1: (720, 720, 18),
-    2: (720, 480, 11)
+    2: (720, 480, 11),
+    11: (682, 512, 12)
 }
 
 class UserInterface:

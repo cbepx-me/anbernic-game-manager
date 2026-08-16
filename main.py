@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
 # make by G.R.H
 
-import zipfile
 import os
+import sys
+import zipfile
 
 def ensure_requests():
     try:
-        import sdl2
-        import qrcode
-        from PIL import Image, ImageDraw, ImageFont
-        from flask import Flask, request, jsonify, send_file, render_template_string
-        return True
-    except ImportError:
-        try:
-            program = os.path.dirname(os.path.abspath(__file__))
+        program = os.path.dirname(os.path.abspath(__file__))
+        depspath = os.path.join(program, "deps")
+        if not os.path.exists(depspath):
             module_file = os.path.join(program, "module.zip")
             with zipfile.ZipFile(module_file, 'r') as zip_ref:
-                zip_ref.extractall("/")
+                zip_ref.extractall(program)
             print("Successfully installed sdl2 and PIL and flask")
-            return True
-        except Exception as e:
-            print(f"Failed to install: {e}")
-            return False
+        return True
+    except Exception as e:
+        print(f"Failed to install: {e}")
+        return False
+
 
 def main():
-
     if ensure_requests():
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, os.path.join(base_path, "deps"))
         import app
         app.main()
 

@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 
 import os
-import glob
+import sys
 from pathlib import Path
+
+base_path = os.path.dirname(os.path.abspath(__file__))
+deps_path = os.path.join(base_path, "deps")
+if os.path.isdir(deps_path):
+    sys.path.insert(0, deps_path)
+else:
+    sys.exit("Dependencies not found. Please ensure the 'deps' directory exists.")
+
+import glob
 import socket
 import threading
 import subprocess
@@ -10,7 +19,6 @@ import tempfile
 import shutil
 import time
 from flask import Flask, request, jsonify, send_file, render_template_string
-import sys
 
 # 导入你的已有模块
 from scraper import Scraper, Rom
@@ -20,19 +28,11 @@ from language import Translator
 from name_converter import name_converter
 
 # 版本
-ver = "1.1.1"
+ver = "1.1.2"
 
 # 全局设备信息
 board_info = "Unknown"
 system_version = "Unknown"
-
-try:
-    import sdl2
-    import sdl2.ext
-    from PIL import Image, ImageDraw, ImageFont
-    SDL_AVAILABLE = True
-except ImportError:
-    SDL_AVAILABLE = False
 
 try:
     board_info = Path("/mnt/vendor/oem/board.ini").read_text().splitlines()[0]
@@ -47,11 +47,21 @@ try:
         'RG35xxSP': 6,
         'RG40xxH': 7,
         'RG40xxV': 8,
-        'RG35xxPRO': 9
+        'RG35xxPRO': 9,
+        "RGds": 10,
+        "RGdsplus": 11
     }
-    hw_info = board_mapping.get(board_info, 5)  # 默认 5
+    hw_info = board_mapping.get(board_info, 5)
 except:
     hw_info = 5
+
+try:
+    import sdl2
+    import sdl2.ext
+    from PIL import Image, ImageDraw, ImageFont
+    SDL_AVAILABLE = True
+except ImportError:
+    SDL_AVAILABLE = False
 
 scraper = Scraper()
 config_path = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -297,6 +307,17 @@ def get_preview_path(game_full_path):
             return candidate
     return None
 
+def get_guide_path(game_full_path):
+    guide_dir = os.path.dirname(game_full_path)
+    game_basename = os.path.basename(game_full_path)
+    name_without_ext = os.path.splitext(game_basename)[0]
+    if not os.path.isdir(guide_dir):
+        return None
+    candidate = os.path.join(guide_dir, name_without_ext + '.txt')
+    if os.path.exists(candidate):
+        return candidate
+    return None
+
 def detect_system_from_ext(filename):
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
     for sys in systems:
@@ -311,38 +332,51 @@ def get_subdirs():
         return []
     dirs = []
     for item in os.listdir(rom_root):
-        if item == "APPS" or item == "PORTS":
+        if item in ["APPS", "PORTS", "EASYRPG", "ONS"]:
             continue
         full = os.path.join(rom_root, item)
         if os.path.isdir(full) and not item.startswith('.') and item != PREVIEW_DIR_NAME:
-            # 统计游戏文件数量
-            game_count = 0
-            for root, _, files in os.walk(full):
-                # 跳过 Imgs 目录
-                if PREVIEW_DIR_NAME in root.split(os.sep):
-                    continue
-                for f in files:
-                    if f.startswith('.'):
-                        continue
-                    # 检测是否为游戏文件（扩展名匹配）
-                    if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
-                        game_count += 1
+            game_count, preview_count = count_games_in_directory(full)
             dirs.append({
                 'name': item,
                 'path': item,
                 'has_games': game_count > 0,
-                'game_count': game_count   # 新增字段
+                'game_count': game_count,
+                'preview_count': preview_count
             })
     dirs.sort(key=lambda x: x['name'].lower())
     print(f"[DEBUG] get_subdirs found {len(dirs)} directories")
     return dirs
+
+def count_games_in_directory(dir_path):
+    """
+    统计指定目录下的游戏文件数量和拥有预览图的游戏数量（递归）。
+    返回 (game_count, preview_count)
+    """
+    game_count = 0
+    preview_count = 0
+    for root, _, files in os.walk(dir_path):
+        # 跳过 Imgs 目录
+        if PREVIEW_DIR_NAME in root.split(os.sep):
+            continue
+        for f in files:
+            if f.startswith('.'):
+                continue
+            # 检测是否为游戏文件（扩展名匹配）
+            if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
+                game_count += 1
+                # 检查是否有预览图
+                game_path = os.path.join(root, f)
+                if get_preview_path(game_path) is not None:
+                    preview_count += 1
+    return game_count, preview_count
 
 def get_files_in_dir(subdir, lang=None):
     """
     返回指定目录下的子目录和文件（不递归）。
     subdir 可以是 ''（根目录）、'NES' 或 'NES/子目录' 等。
     """
-    if subdir == "APPS" or subdir.startswith("APPS/") or subdir == "PORTS" or subdir.startswith("PORTS/"):
+    if subdir in ["APPS", "PORTS", "EASYRPG", "ONS"] or subdir.startswith("APPS/") or subdir.startswith("PORTS/") or subdir.startswith("EASYRPG/") or subdir.startswith("ONS/"):
         return []
     rom_root = get_rom_root()
     target_dir = os.path.join(rom_root, subdir)
@@ -357,6 +391,7 @@ def get_files_in_dir(subdir, lang=None):
             # 忽略 Imgs 目录
             if item == PREVIEW_DIR_NAME:
                 continue
+            sub_game_count, sub_preview_count = count_games_in_directory(full_path)
             items.append({
                 'name': item,
                 'path': rel_path,
@@ -364,7 +399,9 @@ def get_files_in_dir(subdir, lang=None):
                 'size': 0,
                 'console': os.path.basename(top_dir) if top_dir else '',
                 'preview': None,
-                'modified': os.path.getmtime(full_path)
+                'modified': os.path.getmtime(full_path),
+                'game_count': sub_game_count,
+                'preview_count': sub_preview_count
             })
         else:
             ext = os.path.splitext(item)[1].lower()
@@ -411,6 +448,9 @@ def delete_game(game_rel_path):
     preview = get_preview_path(full_path)
     if preview and os.path.exists(preview):
         os.remove(preview)
+    guide = get_guide_path(full_path)
+    if guide and os.path.exists(guide):
+        os.remove(guide)
     return True
 
 def get_system_version():
@@ -578,6 +618,27 @@ def delete_preview():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/delete_guide', methods=['DELETE'])
+def delete_guide():
+    path = request.args.get('path')
+    if not path:
+        return jsonify({'error': 'Missing game path'}), 400
+
+    rom_root = get_rom_root()
+    game_full_path = os.path.join(rom_root, path)
+    if not os.path.exists(game_full_path):
+        return jsonify({'error': 'Game file not found'}), 404
+
+    guide_path = get_guide_path(game_full_path)
+    if not guide_path or not os.path.exists(guide_path):
+        return jsonify({'error': 'Guide file not found'}), 404
+
+    try:
+        os.remove(guide_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/game', methods=['DELETE'])
 def api_delete_game():
     path = request.args.get('path')
@@ -637,16 +698,24 @@ def scrape_preview():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    # 1. 确定系统名称：优先从目录名推断
-    parent_dir = os.path.basename(os.path.dirname(game_full_path))
+    # 1. 确定系统名称：优先从顶层目录名推断
+    top_dir = game_rel_path.split('/')[0]
     system_name = None
     for sys in systems:
-        if sys['name'] == parent_dir:
-            system_name = parent_dir
+        if sys['name'] == top_dir:
+            system_name = top_dir
             break
 
     if system_name is None:
-        # 回退到扩展名检测
+        # 如果顶层目录不在 systems 中，再尝试父目录（兼容子目录结构）
+        parent_dir = os.path.basename(os.path.dirname(game_full_path))
+        for sys in systems:
+            if sys['name'] == parent_dir:
+                system_name = parent_dir
+                break
+
+    if system_name is None:
+        # 最后回退到扩展名检测
         system_name = detect_system_from_ext(os.path.basename(game_full_path))
         if system_name == "Unknown":
             return jsonify({'error': 'Cannot determine system for this file'}), 400
@@ -655,8 +724,10 @@ def scrape_preview():
     if system_id == -1:
         return jsonify({'error': f'Unknown system: {system_name}'}), 400
 
+    # 修正 HBMAME/PGM2/VARCADE → MAME
     if system_name in ["HBMAME", "PGM2", "VARCADE"]:
         system_name = "MAME"
+        system_id = get_system_id("MAME")
 
     # 2. 获取游戏原始名称（不含扩展名）
     game_name = os.path.splitext(os.path.basename(game_full_path))[0]
