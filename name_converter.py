@@ -192,14 +192,12 @@ class NameConverter:
         return self.extract_core_name(filename)
 
     def load_arcade_mapping(self) -> dict:
-        """加载 arcade-plus.csv 并返回 {rom_name: {'zh': 中文名, 'en': 英文名}}"""
         if self.arcade_mapping_cache is not None:
             return self.arcade_mapping_cache
 
         script_dir = Path(__file__).parent
         csv_file = script_dir / "csv" / "arcade-plus.csv"
         if not csv_file.exists():
-            # 尝试当前目录
             csv_file = script_dir / "arcade-plus.csv"
 
         mapping = {}
@@ -224,11 +222,6 @@ class NameConverter:
         return mapping
 
     def get_arcade_display_name(self, rom_name: str, lang: str = 'en_US') -> str:
-        """
-        根据 ROM 名（不含扩展名）和语言返回显示名。
-        如果 lang 以 'zh' 开头（如 zh_CN, zh_TW），返回中文名，否则返回英文名。
-        若找不到映射，返回原 rom_name。
-        """
         if lang is None:
             lang = 'en_US'
         mapping = self.load_arcade_mapping()

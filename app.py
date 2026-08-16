@@ -20,17 +20,14 @@ import shutil
 import time
 from flask import Flask, request, jsonify, send_file, render_template_string
 
-# 导入你的已有模块
 from scraper import Scraper, Rom
 from systems import systems, get_system_id
 from anbernic import Anbernic
 from language import Translator
 from name_converter import name_converter
 
-# 版本
 ver = "1.1.2"
 
-# 全局设备信息
 board_info = "Unknown"
 system_version = "Unknown"
 
@@ -57,8 +54,7 @@ except:
 
 try:
     import sdl2
-    import sdl2.ext
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
     SDL_AVAILABLE = True
 except ImportError:
     SDL_AVAILABLE = False
@@ -108,7 +104,6 @@ def is_connected() -> bool:
     return False
 
 def show_splash_screen(ip):
-    """使用 graphic.py 中的 UserInterface 显示启动画面"""
     print("[DEBUG] show_splash_screen called")
     try:
         from graphic import UserInterface
@@ -128,15 +123,12 @@ def show_splash_screen(ip):
             outline="#0072bb"
         )
 
-        # 标题
         title = f'★ {translator.translate("Anbernic game management")} ★'
         ui.draw_text((ui.screen_width // 2, box_y + 50), title, font=32, color="#ffffff", anchor="mm")
 
-        # URL
         url_text = f"http://{ip}:5000"
         ui.draw_text((ui.screen_width // 2, box_y + 100), url_text, font=32, color="#00d7ff", anchor="mm")
 
-        # 二维码
         qr_success = False
         try:
             import qrcode
@@ -156,19 +148,15 @@ def show_splash_screen(ip):
             ui.active_image.paste(qr_img, (paste_x, paste_y), qr_img)
             qr_success = True
         except ImportError:
-            # 缺少 qrcode 库，显示提示
             print((ui.screen_width // 2, box_y + 190), "QR code library not installed")
 
-        # 引导文字（二维码下方或替代）
         if qr_success:
             qr_text = translator.translate("Scan QR code or visit the URL above")
             ui.draw_text((ui.screen_width // 2, box_y + 320), qr_text, font=25, color="#ffd700", anchor="mm")
         else:
-            # 无二维码时，提示直接访问URL
             open_text = translator.translate("Open this address in your browser")
             ui.draw_text((ui.screen_width // 2, box_y + 230), open_text, font=25, color="#ffd700", anchor="mm")
 
-        # 底部操作提示
         hint = translator.translate("Press SELECT to exit")
         ui.draw_text((ui.screen_width // 2, box_y + box_height - 35), hint, font=23, color="#888888", anchor="mm")
         ui.draw_text((box_x + box_width - 50, box_y + box_height - 35), f"v{ver}", font=23, color="#888888", anchor="mm")
@@ -205,7 +193,6 @@ def show_error_screen():
         import traceback
         traceback.print_exc()
 
-# ---------- 获取本机 IP ----------
 def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -216,13 +203,10 @@ def get_local_ip():
     except:
         return '127.0.0.1'
 
-# ---------- Flask 应用 ----------
 app = Flask(__name__)
 
-# 设置上传文件大小限制（1GB）
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
 
-# 配置
 ALLOWED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
 PREVIEW_DIR_NAME = "Imgs"
 
@@ -233,7 +217,7 @@ ARCADE_SYSTEMS = {
     "HBMAME", "MAME", "NAOMI", "NEOGEO", "OEM_GAME", "PGM2", "VARCADE"
 }
 RENAME_BLACKLIST = ARCADE_SYSTEMS | {"DOS", "EASYRPG", "ONS", "SCUMMVM"}
-current_sd = 1  # 默认使用 SD1
+current_sd = 1
 
 BACKUP_FILE = "/mnt/mmc/anbernic/backup/save.tar.gz"
 BACKUP_MARKER_FILE = "/tmp/anbernic_backup_marker"
@@ -272,16 +256,11 @@ def safe_filename(filename):
     安全处理文件名：保留 Unicode（中文等），仅移除路径分隔符和 '..'，
     防止目录遍历攻击。
     """
-    # 替换路径分隔符
     filename = filename.replace('/', '_').replace('\\', '_')
-    # 移除 '..' 防止目录遍历
     while '..' in filename:
         filename = filename.replace('..', '_')
-    # 移除控制字符（ASCII < 32）
     filename = ''.join(c for c in filename if ord(c) >= 32)
-    # 去除首尾空白
     filename = filename.strip()
-    # 如果文件名为空，给一个默认名
     if not filename:
         filename = 'unnamed'
     return filename
@@ -356,16 +335,13 @@ def count_games_in_directory(dir_path):
     game_count = 0
     preview_count = 0
     for root, _, files in os.walk(dir_path):
-        # 跳过 Imgs 目录
         if PREVIEW_DIR_NAME in root.split(os.sep):
             continue
         for f in files:
             if f.startswith('.'):
                 continue
-            # 检测是否为游戏文件（扩展名匹配）
             if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
                 game_count += 1
-                # 检查是否有预览图
                 game_path = os.path.join(root, f)
                 if get_preview_path(game_path) is not None:
                     preview_count += 1
@@ -388,7 +364,6 @@ def get_files_in_dir(subdir, lang=None):
         full_path = os.path.join(target_dir, item)
         rel_path = os.path.relpath(full_path, rom_root)
         if os.path.isdir(full_path):
-            # 忽略 Imgs 目录
             if item == PREVIEW_DIR_NAME:
                 continue
             sub_game_count, sub_preview_count = count_games_in_directory(full_path)
@@ -405,7 +380,6 @@ def get_files_in_dir(subdir, lang=None):
             })
         else:
             ext = os.path.splitext(item)[1].lower()
-            # 仅识别支持的游戏扩展名
             if detect_system_from_ext(item) == "Unknown" and ext != '.zip':
                 continue
             size = os.path.getsize(full_path)
@@ -432,7 +406,6 @@ def get_files_in_dir(subdir, lang=None):
                 'modified': os.path.getmtime(full_path),
                 'guide_exists': guide_exists
             })
-    # 目录在前，文件在后，各自按名称排序
     dirs = [i for i in items if i['is_dir']]
     files = [i for i in items if not i['is_dir']]
     dirs.sort(key=lambda x: x['name'].lower())
@@ -573,7 +546,6 @@ def upload_game():
                 continue
             safe_name = safe_filename(rf.filename)
             target_path = os.path.join(base_dir, safe_name)
-            # 防止路径穿越
             if not os.path.abspath(target_path).startswith(os.path.abspath(rom_root)):
                 return jsonify({'error': 'Invalid path'}), 400
             rf.save(target_path)
@@ -607,7 +579,6 @@ def delete_preview():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    # 查找预览图
     preview_path = get_preview_path(game_full_path)
     if not preview_path or not os.path.exists(preview_path):
         return jsonify({'error': 'Preview image not found'}), 404
@@ -670,7 +641,6 @@ def update_preview():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    # 生成预览图文件名（与游戏主名相同）
     base_name = os.path.splitext(os.path.basename(game_full_path))[0]
     target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
     os.makedirs(target_dir, exist_ok=True)
@@ -678,7 +648,6 @@ def update_preview():
     preview_filename = base_name + ext
     preview_path = os.path.join(target_dir, preview_filename)
 
-    # 保存文件（直接覆盖）
     image_file.save(preview_path)
 
     return jsonify({
@@ -698,7 +667,6 @@ def scrape_preview():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    # 1. 确定系统名称：优先从顶层目录名推断
     top_dir = game_rel_path.split('/')[0]
     system_name = None
     for sys in systems:
@@ -707,7 +675,6 @@ def scrape_preview():
             break
 
     if system_name is None:
-        # 如果顶层目录不在 systems 中，再尝试父目录（兼容子目录结构）
         parent_dir = os.path.basename(os.path.dirname(game_full_path))
         for sys in systems:
             if sys['name'] == parent_dir:
@@ -715,7 +682,6 @@ def scrape_preview():
                 break
 
     if system_name is None:
-        # 最后回退到扩展名检测
         system_name = detect_system_from_ext(os.path.basename(game_full_path))
         if system_name == "Unknown":
             return jsonify({'error': 'Cannot determine system for this file'}), 400
@@ -724,12 +690,10 @@ def scrape_preview():
     if system_id == -1:
         return jsonify({'error': f'Unknown system: {system_name}'}), 400
 
-    # 修正 HBMAME/PGM2/VARCADE → MAME
     if system_name in ["HBMAME", "PGM2", "VARCADE"]:
         system_name = "MAME"
         system_id = get_system_id("MAME")
 
-    # 2. 获取游戏原始名称（不含扩展名）
     game_name = os.path.splitext(os.path.basename(game_full_path))[0]
 
     if system_name == "PICO":
@@ -746,7 +710,6 @@ def scrape_preview():
         'preview_path': os.path.relpath(preview_path, rom_root)
     })
 
-    # 3. 计算 CRC
     rom_obj = Rom(name=game_name, filename=game_rel_path)
     try:
         crc = scraper.get_crc32_from_file(Path(game_full_path))
@@ -754,7 +717,6 @@ def scrape_preview():
     except Exception as e:
         return jsonify({'error': f'Failed to calculate CRC: {str(e)}'}), 500
 
-    # 4. 执行刮削
     try:
         screenshot_bytes = scraper.scrape_screenshot(
             crc=rom_obj.crc,
@@ -768,7 +730,6 @@ def scrape_preview():
     if not screenshot_bytes:
         return jsonify({'error': f'{translator.translate("No screenshot found for this game")}'}), 404
 
-    # 5. 保存预览图（使用原始文件名）
     target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
     os.makedirs(target_dir, exist_ok=True)
     preview_filename = game_name + '.png'
@@ -808,7 +769,6 @@ def batch_scrape():
     if not os.path.isdir(target_dir):
         return jsonify({'error': 'Directory not found'}), 404
 
-    # 获取目录下所有游戏文件（排除子目录和已有预览的）
     items = get_files_in_dir(subdir)
     files = [item for item in items if not item['is_dir']]
     to_scrape = [f for f in files if not f['preview']]
@@ -816,12 +776,9 @@ def batch_scrape():
     if not to_scrape:
         return jsonify({'success': 0, 'failed': 0, 'message': 'No game needs scraping'})
 
-    # 🔥 关键修复：提取第一级目录作为系统名
-    top_dir = subdir.split('/')[0]   # 例如 "GBA/Subdir" → "GBA"
+    top_dir = subdir.split('/')[0]
     system_id = get_system_id(top_dir)
     if system_id == -1:
-        # 如果顶级目录不在 systems 列表中，则尝试用扩展名检测（但通常不会发生）
-        # 这里报错提示用户
         return jsonify({'error': f'Unknown system: {top_dir}'}), 400
     system_name = top_dir
     if system_name in ["HBMAME", "PGM2", "VARCADE"]:
@@ -848,7 +805,6 @@ def batch_scrape():
                 failed_count += 1
             continue
 
-        # 计算 CRC
         rom_obj = Rom(name=original_game_name, filename=game_rel_path)
         try:
             crc = scraper.get_crc32_from_file(Path(game_full_path))
@@ -858,7 +814,6 @@ def batch_scrape():
             failed_count += 1
             continue
 
-        # 调用刮削
         try:
             screenshot_bytes = scraper.scrape_screenshot(
                 crc=rom_obj.crc,
@@ -875,7 +830,6 @@ def batch_scrape():
             failed_count += 1
             continue
 
-        # 保存预览图
         target_dir_preview = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
         os.makedirs(target_dir_preview, exist_ok=True)
         preview_filename = original_game_name + '.png'
@@ -902,8 +856,6 @@ def rename_game():
     if not new_name:
         return jsonify({'error': 'Invalid name'}), 400
 
-    # 安全过滤：只允许字母、数字、空格、下划线、连字符、中文等，但简单起见用 safe_filename 的反向？
-    # 但我们需要保留新名称中的合法字符，不允许路径分隔符
     if '/' in new_name or '\\' in new_name or new_name.startswith('.') or '..' in new_name:
         return jsonify({'error': 'Invalid name'}), 400
 
@@ -912,8 +864,6 @@ def rename_game():
     if not os.path.exists(old_full_path):
         return jsonify({'error': 'File not found'}), 404
 
-    # 检查系统是否允许重命名
-    # 先获取系统名：从目录名推断
     parent_dir = os.path.basename(os.path.dirname(old_full_path))
     system_name = None
     for sys in systems:
@@ -921,7 +871,6 @@ def rename_game():
             system_name = parent_dir
             break
     if system_name is None:
-        # 回退到扩展名检测（但一般不会）
         system_name = detect_system_from_ext(os.path.basename(old_full_path))
         if system_name == "Unknown":
             return jsonify({'error': 'Cannot determine system'}), 400
@@ -929,40 +878,30 @@ def rename_game():
     if system_name in RENAME_BLACKLIST:
         return jsonify({'error': 'Renaming not supported for this system'}), 403
 
-    # 获取旧文件名信息
     old_dir = os.path.dirname(old_full_path)
     old_basename = os.path.basename(old_full_path)
-    old_ext = os.path.splitext(old_basename)[1]  # 包括点，如 '.zip'
-    # 新完整文件名
+    old_ext = os.path.splitext(old_basename)[1]
     new_basename = new_name + old_ext
     new_full_path = os.path.join(old_dir, new_basename)
 
-    # 检查新文件是否已存在
     if os.path.exists(new_full_path):
         return jsonify({'error': 'File with this name already exists'}), 409
 
-    # 重命名 ROM 文件
     try:
         os.rename(old_full_path, new_full_path)
     except Exception as e:
         return jsonify({'error': f'Rename failed: {str(e)}'}), 500
 
-    # 重命名预览图（如果存在）
-    preview_old = get_preview_path(old_full_path)  # 返回完整路径
+    preview_old = get_preview_path(old_full_path)
     preview_new = None
     if preview_old and os.path.exists(preview_old):
-        # 获取预览图的扩展名
-        preview_ext = os.path.splitext(preview_old)[1]  # 如 .png
+        preview_ext = os.path.splitext(preview_old)[1]
         preview_new = os.path.join(old_dir, PREVIEW_DIR_NAME, new_name + preview_ext)
-        # 确保 Imgs 目录存在
         os.makedirs(os.path.dirname(preview_new), exist_ok=True)
         try:
             os.rename(preview_old, preview_new)
         except Exception as e:
-            # 如果预览图重命名失败，但 ROM 已重命名，记录日志，返回部分成功
             print(f"Warning: Failed to rename preview: {e}")
-            # 我们仍可返回成功，但提示预览未更新
-            # 此处我们返回成功但附带警告
             return jsonify({
                 'success': True,
                 'new_path': os.path.relpath(new_full_path, rom_root),
@@ -970,7 +909,6 @@ def rename_game():
                 'warning': 'Preview rename failed'
             })
 
-    # 返回新路径
     new_rel_path = os.path.relpath(new_full_path, rom_root)
     return jsonify({
         'success': True,
@@ -989,7 +927,6 @@ def upload_guide():
     if guide_file.filename == '':
         return jsonify({'error': 'Empty filename'}), 400
 
-    # 检查扩展名
     if not guide_file.filename.lower().endswith('.txt'):
         return jsonify({'error': 'Only .txt files are allowed'}), 400
 
@@ -998,12 +935,10 @@ def upload_guide():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    # 构建攻略文件路径
     game_dir = os.path.dirname(game_full_path)
     game_basename = os.path.splitext(os.path.basename(game_full_path))[0]
     guide_path = os.path.join(game_dir, game_basename + '.txt')
 
-    # 保存文件（覆盖已有）
     try:
         guide_file.save(guide_path)
     except Exception as e:
@@ -1015,13 +950,10 @@ def upload_guide():
 def backup_save():
     """备份存档：打包指定目录为 tar.gz 并下载"""
     try:
-        # 确保备份目录存在
         os.makedirs(BACKUP_DIR, exist_ok=True)
 
-        # 收集实际存在的文件/目录
         files_to_backup = []
         for pattern in BACKUP_PATHS:
-            # 如果包含通配符，用 glob 展开
             if '*' in pattern:
                 expanded = glob.glob(pattern)
                 files_to_backup.extend(expanded)
@@ -1037,28 +969,22 @@ def backup_save():
             f.write(marker_content)
         files_to_backup.append(BACKUP_MARKER_FILE)
 
-        # 使用临时文件，避免下载失败时破坏原有备份
         with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as tmp:
             temp_path = tmp.name
 
-        # 构建 tar 命令：使用 -T 选项从文件列表读取
-        # 创建一个临时文件列表
         list_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
         for f in files_to_backup:
             list_file.write(f + '\n')
         list_file.close()
 
-        # 执行 tar
         cmd = ['tar', '-zcvf', temp_path, '-T', list_file.name]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        os.unlink(list_file.name)  # 删除临时列表文件
+        os.unlink(list_file.name)
 
         if result.returncode != 0:
             os.unlink(temp_path)
             return jsonify({'error': f'Backup failed: {result.stderr}'}), 500
 
-        # 将临时文件移动到正式位置（可选）
-        # 如果已存在，覆盖
         if os.path.exists(BACKUP_FILE):
             os.remove(BACKUP_FILE)
         shutil.move(temp_path, BACKUP_FILE)
@@ -1069,7 +995,6 @@ def backup_save():
         except:
             pass
 
-        # 发送文件下载
         return send_file(BACKUP_FILE, as_attachment=True,
                          download_name='save_backup.tar.gz',
                          mimetype='application/gzip')
@@ -1088,36 +1013,28 @@ def restore_save():
     if file.filename == '':
         return jsonify({'error': 'Empty filename'}), 400
 
-    # 检查扩展名
     if not file.filename.lower().endswith('.tar.gz') and not file.filename.lower().endswith('.tgz'):
         return jsonify({'error': 'Only .tar.gz files are allowed'}), 400
 
-    # 保存上传的文件到临时位置
     with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as tmp:
         file.save(tmp.name)
         temp_path = tmp.name
 
     try:
-        # 第一步：检查标记文件是否存在
-        # 使用 tar -tf 列出文件列表，查找标记文件
         check_cmd = ['tar', '-tf', temp_path]
         result = subprocess.run(check_cmd, capture_output=True, text=True)
         if result.returncode != 0:
             os.unlink(temp_path)
             return jsonify({'error': 'Invalid backup file: cannot read archive'}), 400
 
-        # 检查标记文件是否在列表中（注意：路径是绝对路径，如 /tmp/anbernic_backup_marker）
         marker_path_in_archive = BACKUP_MARKER_FILE.lstrip('/')
         if marker_path_in_archive not in result.stdout.splitlines():
             os.unlink(temp_path)
             return jsonify({'error': 'Invalid backup file: marker not found'}), 400
 
-        # 解压到根目录（注意：备份时使用绝对路径，解压后覆盖对应位置）
-        # 使用 -xvf 解压，-C / 指定根目录
         cmd = ['tar', '-xzvf', temp_path, '-C', '/']
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-        # 删除临时文件
         os.unlink(temp_path)
 
         if result.returncode != 0:
@@ -1126,7 +1043,6 @@ def restore_save():
         return jsonify({'success': True, 'message': 'Restore completed successfully'})
 
     except Exception as e:
-        # 清理临时文件
         if os.path.exists(temp_path):
             os.unlink(temp_path)
         return jsonify({'error': str(e)}), 500
@@ -1138,12 +1054,9 @@ def shutdown():
     import os
 
     def force_exit():
-        # 等待 0.3 秒，确保 HTTP 响应已经发送到客户端
         time.sleep(0.3)
-        # 强制退出进程，不执行任何清理（在嵌入式设备上安全）
         os._exit(0)
 
-    # 启动后台线程执行退出
     threading.Thread(target=force_exit).start()
     return "服务器正在关闭...", 200
 
@@ -1161,10 +1074,10 @@ def exit_on_key():
     """后台线程：监听任意物理按键，按下即退出程序"""
     print("[DEBUG] 按键监听线程已启动，按 SELECT 退出")
     while True:
-        input.check()  # 阻塞等待按键事件
+        input.check()
         if input.key("SELECT"):
             print(f"[DEBUG] 检测到按键: {input.codeName}，正在退出...")
-            os._exit(0)  # 直接退出，避免调用路由
+            os._exit(0)
 
 def main():
     if not is_connected():
@@ -1191,9 +1104,7 @@ def main():
 
     threading.Thread(target=exit_on_key, daemon=True).start()
 
-    # 启动 Flask
     app.run(host='0.0.0.0', port=5000, debug=False)
 
-# ---------- 启动 ----------
 if __name__ == '__main__':
     main()
