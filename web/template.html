@@ -279,6 +279,7 @@
         <input type="text" id="search-input" placeholder="{{ _('Search...') }}" oninput="filterItems(this.value)">
     </div>
     <div id="search-result"></div>
+        <div id="dir-summary" style="padding:3px 10px 5px 10px; background:#181825; color:#a6adc8; font-size:0.85em; border-bottom:1px solid #313244; display:none;"></div>
         <div id="loading-indicator">
         <div class="spinner"></div>
         <span>{{ _('Loading...') }}</span>
@@ -485,19 +486,19 @@ function updateSelectGameState() {
 
     if (!currentFile) {
         btn.disabled = true;
-        btn.title = lang.no_game_selected;
+        btn.title = lang.select_game_first;
         btnScrape.disabled = true;
-        btnScrape.title = lang.no_game_selected;
+        btnScrape.title = lang.select_game_first;
         btnRename.disabled = true;
-        btnRename.title = lang.no_game_selected;
+        btnRename.title = lang.select_game_first;
         btnGuide.disabled = true;
-        btnGuide.title = lang.no_game_selected;
+        btnGuide.title = lang.select_game_first;
         btnDeletePreview.disabled = true;
-        btnDeletePreview.title = lang.no_game_selected;
+        btnDeletePreview.title = lang.select_game_first;
         btnDeleteGuide.disabled = true;
-        btnDeleteGuide.title = lang.no_game_selected;
+        btnDeleteGuide.title = lang.select_game_first;
         btnDeleteGame.disabled = true;
-        btnDeleteGame.title = lang.no_game_selected;
+        btnDeleteGame.title = lang.select_game_first;
     } else {
         btn.disabled = false;
         btnScrape.disabled = false;
@@ -556,13 +557,9 @@ function loadDirs() {
 
                     if (dir.game_count > 0) {
                         var countSpan = document.createElement('span');
-                        countSpan.textContent = '[' + dir.preview_count + '/' + dir.game_count + ']';
+                        countSpan.textContent = '[' + dir.game_count + ']';
                         countSpan.style.marginLeft = 'auto';
-                        if (dir.preview_count < dir.game_count) {
-                            countSpan.style.color = '#f38ba8';
-                        } else {
-                            countSpan.style.color = '#a6e3a1';
-                        }
+                        countSpan.style.color = '#89b4fa';
                         countSpan.style.fontSize = '1.0em';
                         div.appendChild(countSpan);
                     }
@@ -621,6 +618,7 @@ function enterDir(path) {
         currentItems = items;
         applyFilters();
         updateMissingToggleState()
+        updateDirSummary(items);
 
         if (pendingSelectPath) {
             var found = currentItems.find(function(item) { return !item.is_dir && item.path === pendingSelectPath; });
@@ -634,6 +632,51 @@ function enterDir(path) {
         console.error('files error', err);
         hideLoading();
         updateMissingToggleState();
+    });
+}
+
+function updateDirSummary(items) {
+    var totalGames = 0, totalPreview = 0;
+    items.forEach(function(item) {
+        if (!item.is_dir) {
+            totalGames++;
+            if (item.preview) totalPreview++;
+        }
+    });
+    var summaryEl = document.getElementById('dir-summary');
+    if (totalGames === 0) {
+        summaryEl.style.display = 'none';
+    } else {
+        summaryEl.style.display = 'block';
+        var missing = totalGames - totalPreview;
+        summaryEl.textContent = '🎮 ' + '{{ _("Current total: ") }}' + totalGames + ' | 🖼️ ' + '{{ _("Missing preview: ") }}' + missing;
+    }
+}
+
+function refreshCurrentDir() {
+    if (!currentPath) return;
+    showLoading();
+    fetch('/api/files?dir=' + encodeURIComponent(currentPath) + '&lang=' + encodeURIComponent(currentLang))
+    .then(function(response) { return response.json(); })
+    .then(function(items) {
+        hideLoading();
+        currentItems = items;
+        applyFilters();
+        updateDirSummary(items);
+        if (currentFile) {
+            var found = currentItems.find(function(item) { return !item.is_dir && item.path === currentFile.path; });
+            if (found) {
+                currentFile = found;
+                selectFile(currentFile);
+            } else {
+                currentFile = null;
+                clearDetail();
+            }
+        }
+    })
+    .catch(function(err) {
+        console.error('refresh error', err);
+        hideLoading();
     });
 }
 
@@ -669,13 +712,14 @@ function renderItems(items) {
 
             if (item.game_count > 0) {
                 var countSpan = document.createElement('span');
-                countSpan.textContent = '[' + item.preview_count + '/' + item.game_count + ']';
-                countSpan.style.marginLeft = 'auto';
                 if (item.preview_count < item.game_count) {
+                    countSpan.textContent = '[' + (item.game_count - item.preview_count) + '/' + item.game_count + ']';
                     countSpan.style.color = '#f38ba8';
                 } else {
+                    countSpan.textContent = '[' + item.game_count + ']';
                     countSpan.style.color = '#a6e3a1';
                 }
+                countSpan.style.marginLeft = 'auto';
                 countSpan.style.fontSize = '1.0em';
                 div.appendChild(countSpan);
             }
@@ -824,8 +868,7 @@ function deletePreview() {
             alert(lang.delete_preview_success);
             currentFile.preview = null;
             updateCurrentItem(currentFile.path, { preview: null });
-            applyFilters();
-            selectFile(currentFile);
+            refreshCurrentDir();
         } else {
             alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
         }
@@ -852,8 +895,7 @@ function deleteGuide() {
             alert(lang.delete_guide_success);
             currentFile.guide_exists = false;
             updateCurrentItem(currentFile.path, { guide_exists: false });
-            applyFilters();
-            selectFile(currentFile);
+            refreshCurrentDir();
         } else {
             alert(lang.delete_failed.replace('{error}', data.error || lang.unknown_error));
         }
@@ -915,8 +957,7 @@ function updatePreview() {
             alert(lang.preview_updated);
             currentFile.preview = data.preview_path;
             updateCurrentItem(currentFile.path, { preview: data.preview_path });
-            applyFilters();
-            selectFile(currentFile);
+            refreshCurrentDir();
         } else {
             alert(lang.update_failed.replace('{error}', data.error));
         }
@@ -1097,8 +1138,7 @@ function scrapePreview(btn) {
             alert(lang.preview_scraping);
             currentFile.preview = data.preview_path;
             updateCurrentItem(currentFile.path, { preview: data.preview_path });
-            applyFilters();
-            selectFile(currentFile);
+            refreshCurrentDir();
         } else {
             alert(lang.update_failed.replace('{error}', data.error || lang.unknown_error));
         }
@@ -1148,7 +1188,7 @@ function batchScrape(btn) {
         if (currentFile) {
             pendingSelectPath = currentFile.path;
         }
-        enterDir(currentPath);
+        refreshCurrentDir();
     })
     .catch(err => {
         alert(lang.network_error);
@@ -1266,8 +1306,7 @@ function uploadGuide() {
             alert(lang.guide_upload_success || 'Guide uploaded successfully');
             currentFile.guide_exists = true;
             updateCurrentItem(currentFile.path, { guide_exists: true });
-            applyFilters();
-            selectFile(currentFile);
+            refreshCurrentDir();
         } else {
             alert((lang.upload_guide_failed || 'Upload guide failed: {error}').replace('{error}', data.error || lang.unknown_error));
         }

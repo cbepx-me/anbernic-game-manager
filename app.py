@@ -25,8 +25,9 @@ from systems import systems, get_system_id
 from anbernic import Anbernic
 from language import Translator
 from name_converter import name_converter
+import input
 
-ver = "1.1.2"
+ver = "1.1.3"
 
 board_info = "Unknown"
 system_version = "Unknown"
@@ -66,14 +67,65 @@ if os.path.exists(config_path):
 else:
     print("Warning: config.json not found, scraper may not work.")
 
-import input
-
 try:
     lang_info = Path("/mnt/vendor/oem/language.ini").read_text().splitlines()[0]
     system_list = ['zh_CN', 'zh_TW', 'en_US', 'ja_JP', 'ko_KR', 'es_LA', 'ru_RU', 'de_DE', 'fr_FR', 'pt_BR']
     system_lang = system_list[int(lang_info)]
 except (FileNotFoundError, IndexError):
     system_lang = 'en_US'
+
+EXT_TO_SYSTEM = {}
+for sys in systems:
+    for ext in sys["extensions"]:
+        EXT_TO_SYSTEM[ext] = sys["name"]
+
+app = Flask(__name__)
+
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
+
+ALLOWED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+PREVIEW_DIR_NAME = "Imgs"
+
+device = Anbernic()
+translator = Translator(system_lang)
+ARCADE_SYSTEMS = {
+    "ATOMISWAVE", "CPS1", "CPS2", "CPS3", "FBNEO",
+    "HBMAME", "MAME", "NAOMI", "NEOGEO", "OEM_GAME", "PGM2", "VARCADE"
+}
+RENAME_BLACKLIST = ARCADE_SYSTEMS | {"DOS", "EASYRPG", "ONS", "SCUMMVM"}
+current_sd = 1
+
+BACKUP_FILE = "/mnt/mmc/anbernic/backup/save.tar.gz"
+BACKUP_MARKER_FILE = "/tmp/anbernic_backup_marker"
+BACKUP_DIR = os.path.dirname(BACKUP_FILE)
+BACKUP_PATHS = [
+    "/mnt/mmc/.config/ppsspp/PSP/PPSSPP_STATE/",
+    "/mnt/mmc/.config/ppsspp/PSP/SAVEDATA/",
+    "/mnt/mmc/.pcsx/memcards/",
+    "/mnt/mmc/.pcsx/sstates/",
+    "/mnt/mmc/.pixel_reader_store/",
+    "/mnt/mmc/openbor/Saves/",
+    "/mnt/mmc/save/",
+    "/mnt/mmc/save_nds/",
+    "/mnt/mmc/saves_RA/",
+    "/mnt/mmc/states_RA/",
+    "/mnt/sdcard/.config/ppsspp/PSP/PPSSPP_STATE/",
+    "/mnt/sdcard/.config/ppsspp/PSP/SAVEDATA/",
+    "/mnt/sdcard/.pcsx/memcards/",
+    "/mnt/sdcard/.pcsx/sstates/",
+    "/mnt/sdcard/.pixel_reader_store/",
+    "/mnt/sdcard/openbor/Saves/",
+    "/mnt/sdcard/save/",
+    "/mnt/sdcard/save_nds/",
+    "/mnt/sdcard/saves_RA/",
+    "/mnt/sdcard/states_RA/",
+    "/mnt/vendor/deep/drastic-modify/res/backup/",
+    "/mnt/vendor/deep/drastic-modify/res/savestates/",
+    "/mnt/vendor/deep/retro/system/dc/vmu_save_A1.bin",
+    "/mnt/vendor/deep/retro/system/dc/vmu_save_B1.bin",
+    "/mnt/vendor/deep/retro/system/dc/vmu_save_C1.bin",
+    "/mnt/vendor/deep/retro/system/dc/vmu_save_D1.bin"
+]
 
 
 def is_connected() -> bool:
@@ -203,54 +255,6 @@ def get_local_ip():
     except:
         return '127.0.0.1'
 
-app = Flask(__name__)
-
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
-
-ALLOWED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
-PREVIEW_DIR_NAME = "Imgs"
-
-device = Anbernic()
-translator = Translator(system_lang)
-ARCADE_SYSTEMS = {
-    "ATOMISWAVE", "CPS1", "CPS2", "CPS3", "FBNEO",
-    "HBMAME", "MAME", "NAOMI", "NEOGEO", "OEM_GAME", "PGM2", "VARCADE"
-}
-RENAME_BLACKLIST = ARCADE_SYSTEMS | {"DOS", "EASYRPG", "ONS", "SCUMMVM"}
-current_sd = 1
-
-BACKUP_FILE = "/mnt/mmc/anbernic/backup/save.tar.gz"
-BACKUP_MARKER_FILE = "/tmp/anbernic_backup_marker"
-BACKUP_DIR = os.path.dirname(BACKUP_FILE)
-BACKUP_PATHS = [
-    "/mnt/mmc/.config/ppsspp/PSP/PPSSPP_STATE/",
-    "/mnt/mmc/.config/ppsspp/PSP/SAVEDATA/",
-    "/mnt/mmc/.pcsx/memcards/",
-    "/mnt/mmc/.pcsx/sstates/",
-    "/mnt/mmc/.pixel_reader_store/",
-    "/mnt/mmc/openbor/Saves/",
-    "/mnt/mmc/save/",
-    "/mnt/mmc/save_nds/",
-    "/mnt/mmc/saves_RA/",
-    "/mnt/mmc/states_RA/",
-    "/mnt/sdcard/.config/ppsspp/PSP/PPSSPP_STATE/",
-    "/mnt/sdcard/.config/ppsspp/PSP/SAVEDATA/",
-    "/mnt/sdcard/.pcsx/memcards/",
-    "/mnt/sdcard/.pcsx/sstates/",
-    "/mnt/sdcard/.pixel_reader_store/",
-    "/mnt/sdcard/openbor/Saves/",
-    "/mnt/sdcard/save/",
-    "/mnt/sdcard/save_nds/",
-    "/mnt/sdcard/saves_RA/",
-    "/mnt/sdcard/states_RA/",
-    "/mnt/vendor/deep/drastic-modify/res/backup/",
-    "/mnt/vendor/deep/drastic-modify/res/savestates/",
-    "/mnt/vendor/deep/retro/system/dc/vmu_save_A1.bin",
-    "/mnt/vendor/deep/retro/system/dc/vmu_save_B1.bin",
-    "/mnt/vendor/deep/retro/system/dc/vmu_save_C1.bin",
-    "/mnt/vendor/deep/retro/system/dc/vmu_save_D1.bin"
-]
-
 def safe_filename(filename):
     """
     安全处理文件名：保留 Unicode（中文等），仅移除路径分隔符和 '..'，
@@ -299,10 +303,7 @@ def get_guide_path(game_full_path):
 
 def detect_system_from_ext(filename):
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
-    for sys in systems:
-        if ext in sys["extensions"]:
-            return sys["name"]
-    return "Unknown"
+    return EXT_TO_SYSTEM.get(ext, "Unknown")
 
 def get_subdirs():
     rom_root = get_rom_root()
@@ -315,7 +316,7 @@ def get_subdirs():
             continue
         full = os.path.join(rom_root, item)
         if os.path.isdir(full) and not item.startswith('.') and item != PREVIEW_DIR_NAME:
-            game_count, preview_count = count_games_in_directory(full)
+            game_count, preview_count = count_games_in_directory(full, check_preview=False, recursive=True)
             dirs.append({
                 'name': item,
                 'path': item,
@@ -327,24 +328,38 @@ def get_subdirs():
     print(f"[DEBUG] get_subdirs found {len(dirs)} directories")
     return dirs
 
-def count_games_in_directory(dir_path):
+def count_games_in_directory(dir_path, check_preview=True, recursive=True):
     """
-    统计指定目录下的游戏文件数量和拥有预览图的游戏数量（递归）。
+    统计指定目录下的游戏文件数量和拥有预览图的游戏数量。
     返回 (game_count, preview_count)
     """
     game_count = 0
     preview_count = 0
-    for root, _, files in os.walk(dir_path):
-        if PREVIEW_DIR_NAME in root.split(os.sep):
-            continue
-        for f in files:
-            if f.startswith('.'):
+    if recursive:
+        for root, _, files in os.walk(dir_path):
+            if PREVIEW_DIR_NAME in root.split(os.sep):
                 continue
-            if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
-                game_count += 1
-                game_path = os.path.join(root, f)
-                if get_preview_path(game_path) is not None:
-                    preview_count += 1
+            for f in files:
+                if f.startswith('.'):
+                    continue
+                if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
+                    game_count += 1
+                    game_path = os.path.join(root, f)
+                    if check_preview:
+                        if get_preview_path(game_path) is not None:
+                            preview_count += 1
+    else:
+        try:
+            for f in os.listdir(dir_path):
+                full_path = os.path.join(dir_path, f)
+                if os.path.isfile(full_path) and not f.startswith('.'):
+                    if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
+                        game_count += 1
+                        if check_preview:
+                            if get_preview_path(full_path) is not None:
+                                preview_count += 1
+        except OSError:
+            pass
     return game_count, preview_count
 
 def get_files_in_dir(subdir, lang=None):
@@ -366,7 +381,7 @@ def get_files_in_dir(subdir, lang=None):
         if os.path.isdir(full_path):
             if item == PREVIEW_DIR_NAME:
                 continue
-            sub_game_count, sub_preview_count = count_games_in_directory(full_path)
+            sub_game_count, sub_preview_count = count_games_in_directory(full_path, check_preview=True, recursive=False)
             items.append({
                 'name': item,
                 'path': rel_path,
@@ -456,7 +471,6 @@ def device_info():
         'ver': ver
     })
 
-from flask import render_template_string
 @app.route('/')
 def index():
     lang = request.args.get('lang') or system_lang

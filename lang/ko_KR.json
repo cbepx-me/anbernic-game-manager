@@ -1,4 +1,6 @@
 {
+    "Current total: ": "현재 총계：",
+    "Missing preview: ": "누락된 미리보기：",
     "Delete \"{name}\", its preview, and its guide?": "\"{name}\"과(와) 해당 미리보기 및 가이드를 삭제하시겠습니까?",
     "Delete guide": "가이드 삭제",
     "No guide file to delete": "삭제할 가이드 파일이 없습니다",

@@ -1,4 +1,6 @@
 {
+    "Current total: ": "目前總數：",
+    "Missing preview: ": "缺失預覽：",
     "Delete \"{name}\", its preview, and its guide?": "刪除「{name}」、其預覽圖和攻略？",
     "Delete guide": "刪除攻略",
     "No guide file to delete": "沒有可刪除的攻略檔案",

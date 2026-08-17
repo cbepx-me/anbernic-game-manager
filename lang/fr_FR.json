@@ -1,4 +1,6 @@
 {
+    "Current total: ": "Total actuel :",
+    "Missing preview: ": "Aperçus manquants :",
     "Delete \"{name}\", its preview, and its guide?": "Supprimer \"{name}\", son aperçu et son guide ?",
     "Delete guide": "Supprimer le guide",
     "No guide file to delete": "Aucun fichier de guide à supprimer",

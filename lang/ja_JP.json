@@ -1,4 +1,6 @@
 {
+    "Current total: ": "現在の合計：",
+    "Missing preview: ": "プレビュー欠落：",
     "Delete \"{name}\", its preview, and its guide?": "「{name}」とそのプレビューとガイドを削除しますか？",
     "Delete guide": "ガイドを削除",
     "No guide file to delete": "削除するガイドファイルがありません",

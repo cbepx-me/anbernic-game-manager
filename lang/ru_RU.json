@@ -1,4 +1,6 @@
 {
+    "Current total: ": "Текущее количество:",
+    "Missing preview: ": "Отсутствующих превью:",
     "Delete \"{name}\", its preview, and its guide?": "Удалить \"{name}\", его превью и руководство?",
     "Delete guide": "Удалить руководство",
     "No guide file to delete": "Нет файла руководства для удаления",
