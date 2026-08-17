@@ -1,4 +1,8 @@
 {
+    "Sort by name": "Сортировать по имени",
+    "Sort by size": "Сортировать по размеру",
+    "Sort by modified time": "Сортировать по времени изменения",
+    "Sort by preview": "Сортировать по превью",
     "Current total: ": "Текущее количество:",
     "Missing preview: ": "Отсутствующих превью:",
     "Delete \"{name}\", its preview, and its guide?": "Удалить \"{name}\", его превью и руководство?",

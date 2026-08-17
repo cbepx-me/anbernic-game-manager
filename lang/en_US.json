@@ -1,4 +1,8 @@
 {
+    "Sort by name": "Sort by name",
+    "Sort by size": "Sort by size",
+    "Sort by modified time": "Sort by modified time",
+    "Sort by preview": "Sort by preview",
     "Current total: ": "Current total: ",
     "Missing preview: ": "Missing preview: ",
     "Delete \"{name}\", its preview, and its guide?": "Delete \"{name}\", its preview, and its guide?",

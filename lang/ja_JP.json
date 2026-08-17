@@ -1,4 +1,8 @@
 {
+    "Sort by name": "名前でソート",
+    "Sort by size": "サイズでソート",
+    "Sort by modified time": "更新日時でソート",
+    "Sort by preview": "プレビューでソート",
     "Current total: ": "現在の合計：",
     "Missing preview: ": "プレビュー欠落：",
     "Delete \"{name}\", its preview, and its guide?": "「{name}」とそのプレビューとガイドを削除しますか？",

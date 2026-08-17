@@ -1,4 +1,8 @@
 {
+    "Sort by name": "Ordenar por nombre",
+    "Sort by size": "Ordenar por tamaño",
+    "Sort by modified time": "Ordenar por fecha de modificación",
+    "Sort by preview": "Ordenar por vista previa",
     "Current total: ": "Total actual:",
     "Missing preview: ": "Vistas previas faltantes:",
     "Delete \"{name}\", its preview, and its guide?": "¿Eliminar \"{name}\", su vista previa y su guía?",

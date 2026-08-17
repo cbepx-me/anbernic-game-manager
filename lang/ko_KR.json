@@ -1,4 +1,8 @@
 {
+    "Sort by name": "이름순 정렬",
+    "Sort by size": "크기순 정렬",
+    "Sort by modified time": "수정 시간순 정렬",
+    "Sort by preview": "미리보기순 정렬",
     "Current total: ": "현재 총계：",
     "Missing preview: ": "누락된 미리보기：",
     "Delete \"{name}\", its preview, and its guide?": "\"{name}\"과(와) 해당 미리보기 및 가이드를 삭제하시겠습니까?",

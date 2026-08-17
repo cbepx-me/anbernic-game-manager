@@ -19,6 +19,8 @@ import tempfile
 import shutil
 import time
 from flask import Flask, request, jsonify, send_file, render_template_string
+import pypinyin
+from pypinyin import Style
 
 from scraper import Scraper, Rom
 from systems import systems, get_system_id
@@ -27,7 +29,7 @@ from language import Translator
 from name_converter import name_converter
 import input
 
-ver = "1.1.3"
+ver = "1.1.4"
 
 board_info = "Unknown"
 system_version = "Unknown"
@@ -408,6 +410,14 @@ def get_files_in_dir(subdir, lang=None):
                 except Exception as e:
                     print(f"[ERROR] Arcade conversion failed for {name_without_ext}: {e}")
                     display_name = name_without_ext
+
+            pinyin_str = ''
+            try:
+                pinyin_list = pypinyin.pinyin(display_name, style=Style.FIRST_LETTER)
+                pinyin_str = ''.join([p[0] for p in pinyin_list]).lower()
+            except Exception as e:
+                print(f"[WARN] Pinyin conversion failed for {display_name}: {e}")
+
             guide_path = os.path.join(os.path.dirname(full_path), name_without_ext + '.txt')
             guide_exists = os.path.exists(guide_path)
 
@@ -419,7 +429,8 @@ def get_files_in_dir(subdir, lang=None):
                 'console': os.path.basename(top_dir) if top_dir else 'Unknown',
                 'preview': preview,
                 'modified': os.path.getmtime(full_path),
-                'guide_exists': guide_exists
+                'guide_exists': guide_exists,
+                'pinyin': pinyin_str
             })
     dirs = [i for i in items if i['is_dir']]
     files = [i for i in items if not i['is_dir']]

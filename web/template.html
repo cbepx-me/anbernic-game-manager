@@ -168,6 +168,11 @@
             font-size: 0.85rem;
             transition: background 0.2s;
         }
+        #extra-actions .extra-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         #extra-actions .extra-btn:hover {
             background: #585b70;
         }
@@ -270,8 +275,12 @@
         </select>
         <button onclick="loadDirs()">{{ _('Reset') }}</button>
         <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn-secondary">{{ _('Show missing preview') }}</button>
-        <button onclick="batchScrape(this)" id="batch-scrape" class="btn-secondary">{{ _('Batch scrape') }}</button>
-        <button onclick="showUpload()" id="upload-game" class="btn-secondary">{{ _('Upload game') }}</button>
+        <select id="sort-select" onchange="applySort()">
+            <option value="name">{{ _('Sort by name') }}</option>
+            <option value="size">{{ _('Sort by size') }}</option>
+            <option value="modified">{{ _('Sort by modified time') }}</option>
+            <option value="preview">{{ _('Sort by preview') }}</option>
+        </select>
         <button onclick="shutdownServer()" class="btn-danger">{{ _('Shutdown server') }}</button>
         <span id="breadcrumb"></span>
     </div>
@@ -338,6 +347,7 @@
 <script>
 
 var lang = {
+    upload_game: {{ _('Upload game')|tojson }},
     loading: {{ _('Loading...')|tojson }},
     show_missing_only: {{ _('Show missing preview')|tojson }},
     show_all: {{ _('Show all')|tojson }},
@@ -417,6 +427,13 @@ var currentSd = 1;
 var extraActions = {};
 var showMissingOnly = false;
 var pendingSelectPath = null;
+var currentSort = 'name';
+
+function applySort() {
+    var select = document.getElementById('sort-select');
+    currentSort = select.value;
+    applyFilters();
+}
 
 function getPlaceholderImage(text) {
     text = text || 'No Preview';
@@ -456,22 +473,26 @@ function hideLoading() {
 
 function updateMissingToggleState() {
     var btn = document.getElementById('missing-toggle');
-    var btnUpload = document.getElementById('upload-game');
-    var btnBatch = document.getElementById('batch-scrape');
+    var btnUpload = document.querySelector('.extra-btn[data-action="upload"]');
+    var btnBatch = document.querySelector('.extra-btn[data-action="batch"]');
     if (!currentPath) {
         btn.disabled = true;
         btn.title = lang.no_game_dir;
-        btnUpload.disabled = true;
-        btnUpload.title = lang.no_game_dir;
-        btnBatch.disabled = true;
-        btnBatch.title = lang.no_game_dir;
+        if (btnUpload) {
+            btnUpload.disabled = true;
+            btnUpload.title = lang.no_game_dir;
+        }
+        if (btnBatch) {
+            btnBatch.disabled = true;
+            btnBatch.title = lang.no_game_dir;
+        }
     } else {
         btn.disabled = false;
         btnUpload.disabled = false;
         btnBatch.disabled = false;
         btn.title = '';
-        btnUpload.title = '';
-        btnBatch.title = '';
+        if (btnUpload) btnUpload.title = '';
+        if (btnBatch) btnBatch.title = '';
     }
 }
 
@@ -520,6 +541,7 @@ function updateSelectGameState() {
 function loadDirs() {
     showMissingOnly = false;
     pendingSelectPath = null;
+    updateMissingToggleState();
     document.getElementById('missing-toggle').textContent = lang.show_missing_only;
     document.getElementById('search-input').value = '';
     showLoading();
@@ -539,6 +561,7 @@ function loadDirs() {
             fetch('/api/dirs')
             .then(function(response) { return response.json(); })
             .then(function(dirs) {
+                document.getElementById('dir-summary').style.display = 'none';
                 hideLoading();
                 var list = document.getElementById('game-list');
                 list.innerHTML = '';
@@ -596,6 +619,7 @@ function enterDir(path) {
     currentPath = path || '';
     if (currentPath === '') {
         document.getElementById('breadcrumb').textContent = '';
+        document.getElementById('dir-summary').style.display = 'none';
     } else {
         var displayPath = currentPath.replace(/\//g, ' / ');
         document.getElementById('breadcrumb').textContent = '⬆ 📁 ' + displayPath + ' ({{ _("Back to parent") }})';
@@ -618,7 +642,11 @@ function enterDir(path) {
         currentItems = items;
         applyFilters();
         updateMissingToggleState()
-        updateDirSummary(items);
+        if (currentPath !== '') {
+            updateDirSummary(items);
+        } else {
+            document.getElementById('dir-summary').style.display = 'none';
+        }
 
         if (pendingSelectPath) {
             var found = currentItems.find(function(item) { return !item.is_dir && item.path === pendingSelectPath; });
@@ -781,6 +809,9 @@ function renderItems(items) {
 }
 
 function filterItems(query) {
+    if (!currentPath) {
+        return;
+    }
     applyFilters();
 }
 
@@ -990,6 +1021,8 @@ function showUpload() {
 
 function closeUpload() {
     document.getElementById('upload-modal').style.display = 'none';
+    document.getElementById('upload-rom').value = '';
+    document.getElementById('upload-preview').value = '';
 }
 
 function doUpload() {
@@ -1036,6 +1069,8 @@ function doUpload() {
                 if (response.success) {
                     status.textContent = lang.success + ' (' + response.count + ' {{ _("files") }})';
                     progress.textContent = lang.upload_complete;
+                    document.getElementById('upload-rom').value = '';
+                    document.getElementById('upload-preview').value = '';
                     setTimeout(function() {
                         closeUpload();
                         enterDir(currentPath);
@@ -1450,17 +1485,24 @@ function toggleMissingOnly() {
 
 function applyFilters() {
     if (!currentItems) return;
+    if (!currentPath)  return;
     var query = document.getElementById('search-input').value.trim().toLowerCase();
     var filtered = currentItems.filter(function(item) {
         if (item.is_dir) return true;
         if (showMissingOnly && item.preview) return false;
         if (query) {
-            return item.name.toLowerCase().includes(query) ||
-                   (item.console && item.console.toLowerCase().includes(query));
+            var nameMatch = item.name.toLowerCase().includes(query) ||
+                           (item.console && item.console.toLowerCase().includes(query));
+            var pinyinMatch = false;
+            if (item.pinyin && typeof item.pinyin === 'string') {
+                pinyinMatch = item.pinyin.includes(query);
+            }
+            return nameMatch || pinyinMatch;
         }
         return true;
     });
-    renderItems(filtered);
+    var sorted = sortItems(filtered);
+    renderItems(sorted);
 
     if (currentFile) {
         var stillExists = filtered.some(function(item) {
@@ -1471,6 +1513,35 @@ function applyFilters() {
             clearDetail();
         }
     }
+}
+
+function sortItems(items) {
+    if (!currentSort) return items;
+    var sorted = items.slice();
+    sorted.sort(function(a, b) {
+        if (a.is_dir && !b.is_dir) return -1;
+        if (!a.is_dir && b.is_dir) return 1;
+
+        if (a.is_dir && b.is_dir) {
+            return a.name.localeCompare(b.name);
+        }
+
+        switch (currentSort) {
+            case 'name':
+                return a.name.localeCompare(b.name);
+            case 'size':
+                return a.size - b.size;
+            case 'modified':
+                return a.modified - b.modified;
+            case 'preview':
+                if (a.preview && !b.preview) return -1;
+                if (!a.preview && b.preview) return 1;
+                return a.name.localeCompare(b.name);
+            default:
+                return 0;
+        }
+    });
+    return sorted;
 }
 
 function shutdownServer() {
@@ -1523,6 +1594,8 @@ function addExtraAction(name, callback, cssClass = '', action = '') {
     extraActions[name] = btn;
 }
 
+addExtraAction(lang.batch_scrape, function(e) { batchScrape(e.target); }, 'primary', 'batch');
+addExtraAction(lang.upload_game, showUpload, 'primary', 'upload');
 addExtraAction(lang.backup_save, backupSave, 'primary', 'backup');
 addExtraAction(lang.restore_save, restoreSave, 'primary', 'restore');
 addExtraAction(lang.about || 'About', function() {alert(lang.about_info.replace('{version}', version));}, 'primary');

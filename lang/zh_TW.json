@@ -1,4 +1,8 @@
 {
+    "Sort by name": "按名稱排序",
+    "Sort by size": "按大小排序",
+    "Sort by modified time": "按修改時間排序",
+    "Sort by preview": "按預覽排序",
     "Current total: ": "目前總數：",
     "Missing preview: ": "缺失預覽：",
     "Delete \"{name}\", its preview, and its guide?": "刪除「{name}」、其預覽圖和攻略？",
