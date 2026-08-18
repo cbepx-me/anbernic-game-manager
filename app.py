@@ -29,7 +29,7 @@ from language import Translator
 from name_converter import name_converter
 import input
 
-ver = "1.1.4"
+ver = "1.2.0"
 
 board_info = "Unknown"
 system_version = "Unknown"
@@ -62,7 +62,10 @@ try:
 except ImportError:
     SDL_AVAILABLE = False
 
+from graphic import screen_resolutions, UserInterface
+
 scraper = Scraper()
+gr = UserInterface()
 config_path = os.path.join(os.path.dirname(__file__), 'config.json')
 if os.path.exists(config_path):
     scraper.load_config_from_json(config_path)
@@ -95,7 +98,7 @@ ARCADE_SYSTEMS = {
     "HBMAME", "MAME", "NAOMI", "NEOGEO", "OEM_GAME", "PGM2", "VARCADE"
 }
 RENAME_BLACKLIST = ARCADE_SYSTEMS | {"DOS", "EASYRPG", "ONS", "SCUMMVM"}
-current_sd = 1
+current_sd = device.get_sd_storage()
 
 BACKUP_FILE = "/mnt/mmc/anbernic/backup/save.tar.gz"
 BACKUP_MARKER_FILE = "/tmp/anbernic_backup_marker"
@@ -271,7 +274,12 @@ def safe_filename(filename):
         filename = 'unnamed'
     return filename
 
-def get_rom_root():
+def get_rom_root(sd=None):
+    global current_sd
+
+    if sd is not None:
+        current_sd = sd
+    
     if current_sd == 1:
         path = device.get_sd1_storage_path()
     else:
@@ -307,8 +315,8 @@ def detect_system_from_ext(filename):
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
     return EXT_TO_SYSTEM.get(ext, "Unknown")
 
-def get_subdirs():
-    rom_root = get_rom_root()
+def get_subdirs(sd=None):
+    rom_root = get_rom_root(sd=sd)
     if not os.path.isdir(rom_root):
         print(f"[DEBUG] ROM root {rom_root} is not a directory")
         return []
@@ -322,6 +330,7 @@ def get_subdirs():
             dirs.append({
                 'name': item,
                 'path': item,
+                'is_dir': True,
                 'has_games': game_count > 0,
                 'game_count': game_count,
                 'preview_count': preview_count
@@ -472,6 +481,94 @@ def get_system_version():
             except:
                 pass
     return 'Unknown'
+
+def scrape_preview_for_path(game_rel_path: str) -> tuple[bool, str]:
+    """
+    根据游戏相对路径（相对于 ROM 根目录）刮削预览图。
+    返回 (success, preview_path_or_error)
+    """
+    rom_root = get_rom_root()
+    game_full_path = os.path.join(rom_root, game_rel_path)
+    if not os.path.exists(game_full_path):
+        return False, "Game file not found"
+
+    top_dir = game_rel_path.split('/')[0]
+    system_name = None
+    for sys in systems:
+        if sys['name'] == top_dir:
+            system_name = top_dir
+            break
+    if system_name is None:
+        parent_dir = os.path.basename(os.path.dirname(game_full_path))
+        for sys in systems:
+            if sys['name'] == parent_dir:
+                system_name = parent_dir
+                break
+    if system_name is None:
+        system_name = detect_system_from_ext(os.path.basename(game_full_path))
+        if system_name == "Unknown":
+            return False, "Cannot determine system for this file"
+
+    system_id = get_system_id(system_name)
+    if system_id == -1:
+        return False, f"Unknown system: {system_name}"
+
+    if system_name in ["HBMAME", "PGM2", "VARCADE"]:
+        system_name = "MAME"
+        system_id = get_system_id("MAME")
+
+    game_name = os.path.splitext(os.path.basename(game_full_path))[0]
+
+    if system_name == "PICO":
+        try:
+            target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
+            os.makedirs(target_dir, exist_ok=True)
+            preview_filename = game_name + '.png'
+            preview_path = os.path.join(target_dir, preview_filename)
+            shutil.copy(game_full_path, preview_path)
+            return True, os.path.relpath(preview_path, rom_root)
+        except Exception as e:
+            return False, f"PICO copy failed: {str(e)}"
+
+    rom_obj = Rom(name=game_name, filename=game_rel_path)
+    try:
+        crc = scraper.get_crc32_from_file(Path(game_full_path))
+        rom_obj.set_crc(crc)
+    except Exception as e:
+        return False, f"CRC calculation failed: {str(e)}"
+
+    try:
+        screenshot_bytes = scraper.scrape_screenshot(
+            crc=rom_obj.crc,
+            game_name=game_name,
+            system_id=system_id,
+            system_name=system_name
+        )
+    except Exception as e:
+        return False, f"Scraping failed: {str(e)}"
+
+    if not screenshot_bytes:
+        return False, translator.translate("No screenshot found for this game")
+
+    target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
+    os.makedirs(target_dir, exist_ok=True)
+    preview_filename = game_name + '.png'
+    preview_path = os.path.join(target_dir, preview_filename)
+
+    if scraper.resize:
+        try:
+            from PIL import Image
+            from io import BytesIO
+            img = Image.open(BytesIO(screenshot_bytes))
+            img = img.resize((640, 480), Image.LANCZOS)
+            img.save(preview_path, 'PNG')
+        except Exception as e:
+            return False, f"Resize failed: {str(e)}"
+    else:
+        with open(preview_path, 'wb') as f:
+            f.write(screenshot_bytes)
+
+    return True, os.path.relpath(preview_path, rom_root)
 
 # ---------- API 路由 ----------
 @app.route('/api/device_info')
@@ -686,97 +783,11 @@ def scrape_preview():
     if not data or 'path' not in data:
         return jsonify({'error': 'Missing game path'}), 400
 
-    game_rel_path = data['path']
-    rom_root = get_rom_root()
-    game_full_path = os.path.join(rom_root, game_rel_path)
-    if not os.path.exists(game_full_path):
-        return jsonify({'error': 'Game file not found'}), 404
-
-    top_dir = game_rel_path.split('/')[0]
-    system_name = None
-    for sys in systems:
-        if sys['name'] == top_dir:
-            system_name = top_dir
-            break
-
-    if system_name is None:
-        parent_dir = os.path.basename(os.path.dirname(game_full_path))
-        for sys in systems:
-            if sys['name'] == parent_dir:
-                system_name = parent_dir
-                break
-
-    if system_name is None:
-        system_name = detect_system_from_ext(os.path.basename(game_full_path))
-        if system_name == "Unknown":
-            return jsonify({'error': 'Cannot determine system for this file'}), 400
-
-    system_id = get_system_id(system_name)
-    if system_id == -1:
-        return jsonify({'error': f'Unknown system: {system_name}'}), 400
-
-    if system_name in ["HBMAME", "PGM2", "VARCADE"]:
-        system_name = "MAME"
-        system_id = get_system_id("MAME")
-
-    game_name = os.path.splitext(os.path.basename(game_full_path))[0]
-
-    if system_name == "PICO":
-        try:
-            target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
-            os.makedirs(target_dir, exist_ok=True)
-            preview_filename = game_name + '.png'
-            preview_path = os.path.join(target_dir, preview_filename)
-            shutil.copy(game_full_path, preview_path)
-        except Exception as e:
-            return jsonify({'error': f'Scraping failed: {str(e)}'}), 500
-        return jsonify({
-        'success': True,
-        'preview_path': os.path.relpath(preview_path, rom_root)
-    })
-
-    rom_obj = Rom(name=game_name, filename=game_rel_path)
-    try:
-        crc = scraper.get_crc32_from_file(Path(game_full_path))
-        rom_obj.set_crc(crc)
-    except Exception as e:
-        return jsonify({'error': f'Failed to calculate CRC: {str(e)}'}), 500
-
-    try:
-        screenshot_bytes = scraper.scrape_screenshot(
-            crc=rom_obj.crc,
-            game_name=game_name,
-            system_id=system_id,
-            system_name=system_name
-        )
-    except Exception as e:
-        return jsonify({'error': f'Scraping failed: {str(e)}'}), 500
-
-    if not screenshot_bytes:
-        return jsonify({'error': f'{translator.translate("No screenshot found for this game")}'}), 404
-
-    target_dir = os.path.join(os.path.dirname(game_full_path), PREVIEW_DIR_NAME)
-    os.makedirs(target_dir, exist_ok=True)
-    preview_filename = game_name + '.png'
-    preview_path = os.path.join(target_dir, preview_filename)
-
-    if scraper.resize:
-        try:
-            from PIL import Image
-            from io import BytesIO
-            img = Image.open(BytesIO(screenshot_bytes))
-            img = img.resize((640, 480), Image.LANCZOS)
-            img.save(preview_path, 'PNG')
-        except Exception as e:
-            return jsonify({'error': f'Failed to resize image: {str(e)}'}), 500
+    success, result = scrape_preview_for_path(data['path'])
+    if success:
+        return jsonify({'success': True, 'preview_path': result})
     else:
-        with open(preview_path, 'wb') as f:
-            f.write(screenshot_bytes)
-
-    return jsonify({
-        'success': True,
-        'preview_path': os.path.relpath(preview_path, rom_root)
-    })
+        return jsonify({'error': result}), 500 if 'not found' not in result else 404
 
 @app.route('/api/batch_scrape', methods=['POST'])
 def batch_scrape():
@@ -1104,7 +1115,93 @@ def exit_on_key():
             print(f"[DEBUG] 检测到按键: {input.codeName}，正在退出...")
             os._exit(0)
 
+def load_menu() -> None:
+
+    menu_selected_position = 0
+    all_menu = [
+        translator.translate("Manage via Browser"),
+        translator.translate("Manage on Device")
+    ]
+    x_size, y_size, max_elem = screen_resolutions.get(hw_info, (640, 480, 11))
+    button_x = x_size - 120
+    button_y = y_size - 30
+
+
+    while True:
+        if input.key("DY"):
+            menu_selected_position = (menu_selected_position + input.value) % len(all_menu)
+        elif input.key("A"):
+            return menu_selected_position
+        elif input.key("MENUF"):
+            gr.draw_clear()
+            gr.draw_log(
+                f"{translator.translate('Exiting...')}", fill=gr.colorBlue, outline=gr.colorBlueD1
+            )
+            gr.draw_paint()
+            time.sleep(1.5)
+            gr.draw_end()
+            sys.exit(0)
+
+        gr.draw_clear()
+
+        gr.draw_rectangle_r([10, 100, x_size - 10, y_size - 40], 15, fill=gr.colorGrayD2, outline=None)
+
+        gr.draw_text((x_size / 2, 40), f"{translator.translate('Anbenric Game Manager')} v{ver}", font=32, anchor="mm")
+        gr.draw_text((x_size / 2, 80), f"{translator.translate('Model')}: {board_info}", font=23, anchor="mm")
+
+        btn_width = int(x_size * 0.6)
+        btn_height = int(y_size * 0.15)
+        btn_width = max(btn_width, 200)
+        btn_height = max(btn_height, 60)
+
+        spacing = int(btn_height * 0.3)
+        total_height = 2 * btn_height + spacing
+
+        y_start = 110
+        y_end = button_y - 40
+        available_height = y_end - y_start
+
+        if available_height < total_height:
+            btn_height = int((available_height - spacing) / 2)
+            btn_height = max(btn_height, 50)
+            total_height = 2 * btn_height + spacing
+
+        y_center = (y_start + y_end) // 2
+        first_btn_y = y_center - total_height // 2
+        second_btn_y = first_btn_y + btn_height + spacing
+
+        btn_x = (x_size - btn_width) // 2
+
+        selected = menu_selected_position
+        for i, menu_key in enumerate(all_menu):
+            y_pos = first_btn_y if i == 0 else second_btn_y
+            fill_color = gr.colorBlue if i == selected else gr.colorGrayL1
+            gr.draw_rectangle_r(
+                [btn_x, y_pos, btn_x + btn_width, y_pos + btn_height],
+                10,
+                fill=fill_color,
+                outline=None
+            )
+            gr.draw_text(
+                (btn_x + btn_width / 2, y_pos + btn_height / 2),
+                translator.translate(menu_key),
+                font=21,
+                anchor="mm"
+            )
+
+        gr.button_circle((30, button_y), "A", f"{translator.translate('Confirm')}")
+        gr.button_circle((button_x, button_y), "M", f"{translator.translate('Exit')}")
+        gr.draw_paint()
+        input.check()
+        time.sleep(0.05)
+
 def main():
+    if load_menu() == 1:
+        print("  正在启动本机端...")
+        from local_ui import main as local_main
+        local_main()
+        return
+
     if not is_connected():
         show_error_screen()
         time.sleep(3)

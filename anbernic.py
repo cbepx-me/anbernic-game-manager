@@ -37,8 +37,11 @@ class Anbernic:
             self.__current_sd = sd
     
     def get_sd_storage(self):
-        return self.__current_sd
-    
+        if self.__current_sd == 1 or not any(Path("/mnt/sdcard").iterdir()):
+            self.__current_sd = 1
+            return 1
+        return 2
+
     def switch_sd_storage(self):
         if self.__current_sd == 1:
             self.__current_sd = 2
@@ -49,8 +52,7 @@ class Anbernic:
         if self.__current_sd == 1 or not any(Path("/mnt/sdcard").iterdir()):
             self.__current_sd = 1
             return self.get_sd1_storage_path()
-        else:
-            return self.get_sd2_storage_path()
+        return self.get_sd2_storage_path()
     
     def get_sd_storage_console_path(self, console):
         if self.__current_sd == 1:
