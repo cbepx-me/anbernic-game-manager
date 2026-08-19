@@ -114,13 +114,31 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 ## 🖼️ Screenshots
 
-<img width="1858" height="1224" alt="屏幕截图 2026-08-16 115551" src="https://github.com/user-attachments/assets/a68b8498-010d-4620-ba3b-d47091cc9d12" />
+<img width="720" height="480" alt="screenshot_20260819_232851" src="https://github.com/user-attachments/assets/836e801d-95e9-4a84-9727-1bec91da662a" />
+<img width="720" height="480" alt="screenshot_20260819_233257" src="https://github.com/user-attachments/assets/00bc5807-3a28-4b7d-b867-e0ba07aa5427" />
+
+
+### Web UI
+
+<img width="1860" height="1225" alt="屏幕截图 2026-08-19 233459" src="https://github.com/user-attachments/assets/308ee0d5-4f1b-4236-bab9-e5a1d0679848" />
 
 Main dashboard – browse games, view previews, and manage files.
+
 <div align="center">
-<img width="400" height="1000" alt="82c0fdc6867d16ceba058a59cfd01298" src="https://github.com/user-attachments/assets/f252aa3c-ded7-46f1-a80e-f6558745dc34" />
+<img width="400" height="1002" alt="82c0fdc6867d16ceba058a59cfd01298" src="https://github.com/user-attachments/assets/ad0f3444-c87b-4e47-9626-38fdcab19260" />
 </div>
+
 Mobile main interface – browse games, view details, and manage files on the go.
+
+### Local UI
+
+<img width="720" height="480" alt="screenshot_20260819_233349" src="https://github.com/user-attachments/assets/461ea82d-ecef-4ffd-b661-0de11f0917ac" />
+
+Main dashboard – browse games, view previews, and manage files.
+
+<img width="720" height="480" alt="screenshot_20260819_233358" src="https://github.com/user-attachments/assets/7b82ac94-9cf0-4e8d-a23f-2395117762da" />
+
+Game details interface.
 
 ---
 
