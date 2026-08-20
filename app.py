@@ -80,9 +80,9 @@ except (FileNotFoundError, IndexError):
     system_lang = 'en_US'
 
 EXT_TO_SYSTEM = {}
-for sys in systems:
-    for ext in sys["extensions"]:
-        EXT_TO_SYSTEM[ext] = sys["name"]
+for system in systems:
+    for ext in system["extensions"]:
+        EXT_TO_SYSTEM[ext] = system["name"]
 
 app = Flask(__name__)
 
@@ -256,7 +256,7 @@ def get_local_ip():
         s.connect(('8.8.8.8', 80))
         ip = s.getsockname()[0]
         s.close()
-        return ip
+        return str(ip)
     except:
         return '127.0.0.1'
 
@@ -1115,7 +1115,7 @@ def exit_on_key():
             print(f"[DEBUG] 检测到按键: {input.codeName}，正在退出...")
             os._exit(0)
 
-def load_menu() -> None:
+def load_menu() -> int:
 
     menu_selected_position = 0
     all_menu = [
@@ -1146,7 +1146,7 @@ def load_menu() -> None:
 
         gr.draw_rectangle_r([10, 100, x_size - 10, y_size - 40], 15, fill=gr.colorGrayD2, outline=None)
 
-        gr.draw_text((x_size / 2, 40), f"{translator.translate('Anbenric Game Manager')} v{ver}", font=32, anchor="mm")
+        gr.draw_text((x_size / 2, 40), f"{translator.translate('Anbernic Game Manager')} v{ver}", font=32, anchor="mm")
         gr.draw_text((x_size / 2, 80), f"{translator.translate('Model')}: {board_info}", font=23, anchor="mm")
 
         btn_width = int(x_size * 0.6)

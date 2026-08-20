@@ -2,7 +2,7 @@ import ctypes
 import os
 from app import hw_info
 from typing import Optional
-
+import time
 import sdl2
 from PIL import Image, ImageDraw, ImageFont
 
@@ -366,3 +366,12 @@ class UserInterface:
         paste_y = target_y + (target_height - img.height) // 2
         self.active_Image.paste(img, (paste_x, paste_y))
         self.draw_paint()
+
+    def save_screenshot(self, filename=None):
+        if filename is None:
+            save_dir = "/mnt/mmc/anbernic/screenshots"
+            os.makedirs(save_dir, exist_ok=True)
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = os.path.join(save_dir, f"screenshot_{timestamp}.png")
+        self.active_image.save(filename)
+        return filename

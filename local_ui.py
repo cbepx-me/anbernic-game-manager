@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# local_ui.py - 本机端主入口
 
 import os
 import sys
