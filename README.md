@@ -113,11 +113,12 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 ---
 
 ## 🖼️ Screenshots
-
+<div align="center">
 <img width="720" height="480" alt="screenshot_20260820_091019" src="https://github.com/user-attachments/assets/ab37ee38-e52b-45a2-a2ec-e1a00ee1cf34" />
 
 <img width="720" height="480" alt="screenshot_20260819_233257" src="https://github.com/user-attachments/assets/00bc5807-3a28-4b7d-b867-e0ba07aa5427" />
 
+---
 
 ### Web UI
 
@@ -125,11 +126,12 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 Main dashboard – browse games, view previews, and manage files.
 
-<div align="center">
 <img width="400" height="882" alt="1f67a19399b17dadb4ffd65c63995807" src="https://github.com/user-attachments/assets/4d09b7b1-162a-4098-bb2e-8f2abb118ea7" />
-</div>
+
 
 Mobile main interface – browse games, view details, and manage files on the go.
+
+---
 
 ### Local UI
 
@@ -140,7 +142,7 @@ Main dashboard – browse games, view previews, and manage files.
 <img width="720" height="480" alt="screenshot_20260819_233358" src="https://github.com/user-attachments/assets/7b82ac94-9cf0-4e8d-a23f-2395117762da" />
 
 Game details interface.
-
+</div>
 ---
 
 ## 🤝 Contributing
