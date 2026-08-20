@@ -114,7 +114,8 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 ## 🖼️ Screenshots
 
-<img width="720" height="480" alt="screenshot_20260819_232851" src="https://github.com/user-attachments/assets/836e801d-95e9-4a84-9727-1bec91da662a" />
+<img width="720" height="480" alt="screenshot_20260820_091019" src="https://github.com/user-attachments/assets/ab37ee38-e52b-45a2-a2ec-e1a00ee1cf34" />
+
 <img width="720" height="480" alt="screenshot_20260819_233257" src="https://github.com/user-attachments/assets/00bc5807-3a28-4b7d-b867-e0ba07aa5427" />
 
 
@@ -125,7 +126,7 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 Main dashboard – browse games, view previews, and manage files.
 
 <div align="center">
-<img width="400" height="1002" alt="82c0fdc6867d16ceba058a59cfd01298" src="https://github.com/user-attachments/assets/ad0f3444-c87b-4e47-9626-38fdcab19260" />
+<img width="400" height="882" alt="1f67a19399b17dadb4ffd65c63995807" src="https://github.com/user-attachments/assets/4d09b7b1-162a-4098-bb2e-8f2abb118ea7" />
 </div>
 
 Mobile main interface – browse games, view details, and manage files on the go.
