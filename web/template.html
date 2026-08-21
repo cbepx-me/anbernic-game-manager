@@ -184,8 +184,28 @@
             background: #f38ba8;
             color: #1e1e2e;
         }
+        #import-modal {
+            display:none;
+            position:fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background:rgba(0,0,0,0.7);
+            justify-content:center;
+            align-items:center;
+            z-index:1000;
+            padding:15px;
+        }
+        #import-modal > div {
+            background:#1e1e2e;
+            padding:25px;
+            border-radius:16px;
+            min-width:280px;
+            max-width:500px;
+            width:100%;
+            border:1px solid #45475a;
+        }
 
-        /* ========== 手机响应样式 ========== */
+        /* ========== Mobile ========== */
         @media screen and (max-width: 768px) {
             .file-item {
                 padding: 8px 6px;
@@ -270,8 +290,8 @@
     <div id="device-info">{{ _('Loading device info...') }}</div>
     <div id="toolbar">
         <select id="sd-select">
-            <option value="1" selected>SD1</option>
-            <option value="2">SD2</option>
+            <option value="1">SD1</option>
+            <option value="2" selected>SD2</option>
         </select>
         <button onclick="loadDirs()">{{ _('Reset') }}</button>
         <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn-secondary">{{ _('Show missing preview') }}</button>
@@ -343,10 +363,52 @@
         <div id="upload-progress"></div>
     </div>
 </div>
+<div id="import-modal">
+    <div>
+        <h3>{{ _('Batch Import Games') }}</h3>
+        <div class="flex-row">
+            <label>{{ _('Select source folder (contains metadata and game files):') }}
+                <input type="file" id="import-folder" webkitdirectory directory multiple style="width:100%;">
+                <span id="import-folder-path" style="font-size:0.8em; color:#a6adc8;"></span>
+            </label>
+        </div>
+        <div class="flex-row">
+            <label>{{ _('Upload metadata file (optional, gamelist.xml or metadata.pegasus.txt):') }}
+                <input type="file" id="import-metadata" accept=".xml,.txt" style="width:100%;">
+            </label>
+        </div>
+        <div class="flex-row">
+            <label><input type="checkbox" id="import-use-display-name" autocomplete="off"> {{ _('Use display name from metadata as filename') }}</label>
+        </div>
+        <div class="flex-row">
+            <label><input type="checkbox" id="import-overwrite"> {{ _('Overwrite existing files') }}</label>
+        </div>
+        <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" onclick="doImport()">{{ _('Import') }}</button>
+            <button class="btn-secondary" onclick="closeImport()">{{ _('Cancel') }}</button>
+            <span id="import-status"></span>
+        </div>
+        <div id="import-progress" style="margin-top:10px; color:#a6e3a1; font-size:0.9em; display:none;"></div>
+        
+    </div>
+</div>
 
 <script>
 
 var lang = {
+    preview: {{ _('Preview:')|tojson }},
+    import_completed: {{ _('Import completed!\nSuccess: {success}, Failed: {failed}, Skipped: {skipped}')|tojson }},
+    select_folder_prompt: {{ _('Please select a source folder containing game files.')|tojson }},
+    single_file_warning: {{ _('You seem to have selected only one file, not the entire folder.\nContinue? (Cancel recommended and reselect folder')|tojson }},
+    uploading_files_count: {{ _('About to upload to {console}.')|tojson }},
+    cannot_determine_console: {{ _('Cannot determine target console from current directory.')|tojson }},
+    batch_import_games: {{ _('Batch Import Games')|tojson }},
+    please_select_metadata: {{ _('Please select a metadata file')|tojson }},
+    please_enter_source_dir: {{ _('Please enter source directory')|tojson }},
+    please_select_target_console: {{ _('Please select target console')|tojson }},
+    importing: {{ _('Importing...')|tojson }},
+    import_complete: {{ _('Import completed! Success: {success}, Failed: {failed}')|tojson }},
+    import_failed: {{ _('Import failed: {error}')|tojson }},
     upload_game: {{ _('Upload game')|tojson }},
     loading: {{ _('Loading...')|tojson }},
     show_missing_only: {{ _('Show missing preview')|tojson }},
@@ -420,6 +482,7 @@ var lang = {
 
 var currentLang = '{{ lang }}';
 var version = '{{ ver }}';
+var systems = {{ systems|tojson }};
 var currentPath = '';
 var currentItems = [];
 var currentFile = null;
@@ -475,6 +538,7 @@ function updateMissingToggleState() {
     var btn = document.getElementById('missing-toggle');
     var btnUpload = document.querySelector('.extra-btn[data-action="upload"]');
     var btnBatch = document.querySelector('.extra-btn[data-action="batch"]');
+    var btnImport = document.querySelector('.extra-btn[data-action="import"]');
     if (!currentPath) {
         btn.disabled = true;
         btn.title = lang.no_game_dir;
@@ -486,13 +550,19 @@ function updateMissingToggleState() {
             btnBatch.disabled = true;
             btnBatch.title = lang.no_game_dir;
         }
+        if (btnImport) {
+            btnImport.disabled = true;
+            btnImport.title = lang.no_game_dir;
+        }
     } else {
         btn.disabled = false;
         btnUpload.disabled = false;
         btnBatch.disabled = false;
+        btnImport.disabled = false;
         btn.title = '';
         if (btnUpload) btnUpload.title = '';
         if (btnBatch) btnBatch.title = '';
+        if (btnImport) btnImport.title = '';
     }
 }
 
@@ -556,6 +626,7 @@ function loadDirs() {
     .then(function(data) {
         if (data.status === 'ok') {
             currentSd = data.sd;
+            document.getElementById('sd-select').value = data.sd;
             updateStorageInfo();
             updateDeviceInfo();
             fetch('/api/dirs')
@@ -578,7 +649,7 @@ function loadDirs() {
                     nameSpan.textContent = '📁 ' + dir.name;
                     div.appendChild(nameSpan);
 
-                    if (dir.game_count > 0) {
+                    if (dir.game_count >= 0) {
                         var countSpan = document.createElement('span');
                         countSpan.textContent = '[' + dir.game_count + ']';
                         countSpan.style.marginLeft = 'auto';
@@ -1544,6 +1615,284 @@ function sortItems(items) {
     return sorted;
 }
 
+function showImportModal() {
+    if (!currentPath || currentPath === '') {
+        alert(lang.no_game_dir);
+        return;
+    }
+    document.getElementById('import-modal').style.display = 'flex';
+    document.getElementById('import-status').textContent = '';
+    document.getElementById('import-progress').style.display = 'none';
+    document.getElementById('import-folder-path').textContent = '';
+    document.getElementById('import-use-display-name').checked = false;
+}
+
+function closeImport() {
+    document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('import-folder').value = '';
+    document.getElementById('import-metadata').value = '';
+    document.getElementById('import-overwrite').checked = false;
+    document.getElementById('import-folder-path').textContent = '';
+    document.getElementById('import-use-display-name').checked = false;
+}
+
+function doImport() {
+    var folderInput = document.getElementById('import-folder');
+    var metadataInput = document.getElementById('import-metadata');
+    var overwriteCheck = document.getElementById('import-overwrite');
+    var folderFiles = folderInput.files;
+
+    if (folderFiles.length === 0) {
+        alert(lang.select_folder_prompt || 'Please select a source folder containing game files.');
+        return;
+    }
+
+    if (folderFiles.length === 1) {
+        var firstFile = folderFiles[0];
+        if (!firstFile.webkitRelativePath || firstFile.webkitRelativePath.indexOf('/') === -1) {
+            if (!confirm(lang.single_file_warning || 'You seem to have selected only one file, not the entire folder.\nContinue? (Cancel recommended and reselect folder)')) {
+                return;
+            }
+        }
+    }
+
+    var metadataFile = metadataInput.files[0];
+    if (!metadataFile) {
+        for (var i = 0; i < folderFiles.length; i++) {
+            var f = folderFiles[i];
+            var name = f.name.toLowerCase();
+            if (name === 'gamelist.xml' || name === 'metadata.pegasus.txt') {
+                metadataFile = f;
+                break;
+            }
+        }
+        if (!metadataFile) {
+            alert(lang.please_select_metadata || 'Please upload a metadata file (gamelist.xml or metadata.pegasus.txt).');
+            return;
+        }
+    }
+
+    var targetConsole = currentPath.split('/')[0];
+    if (!targetConsole) {
+        alert(lang.cannot_determine_console || 'Cannot determine target console from current directory.');
+        return;
+    }
+
+    if (!confirm((lang.uploading_files_count || 'About to upload files to {console}.').replace('{console}', targetConsole))) {
+        return;
+    }
+
+    var fileMap = {};
+    var fileMapLower = {};
+    for (var i = 0; i < folderFiles.length; i++) {
+        var file = folderFiles[i];
+        var relPath = file.webkitRelativePath || file.name;
+        var parts = relPath.split('/');
+        if (parts.length > 1) {
+            parts.shift();
+            relPath = parts.join('/');
+        }
+        relPath = relPath.replace(/^\.\//, '').replace(/\\/g, '/');
+        fileMap[relPath] = file;
+        fileMapLower[relPath.toLowerCase()] = file;
+    }
+    console.log('Indexed files:', Object.keys(fileMap).length);
+
+    var status = document.getElementById('import-status');
+    var progress = document.getElementById('import-progress');
+    progress.style.display = 'block';
+    progress.textContent = lang.importing || 'Analyzing metadata...';
+    status.textContent = '';
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('global-overlay-text').textContent = '⏳ ' + (lang.importing || 'Analyzing...');
+
+    var formData = new FormData();
+    formData.append('metadata', metadataFile);
+    formData.append('target_console', targetConsole);
+    var useDisplayName = document.getElementById('import-use-display-name').checked;
+    formData.append('use_display_name', useDisplayName ? 'true' : 'false');
+
+    fetch('/api/import_analyze', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.error) {
+            alert((lang.import_failed || 'Import failed: {error}').replace('{error}', data.error));
+            overlay.style.display = 'none';
+            progress.style.display = 'none';
+            return;
+        }
+
+        var fileList = data.files || [];
+        var previewList = data.previews || [];
+        console.log('Files:', fileList.length, 'Previews:', previewList.length);
+
+        if (fileList.length === 0 && previewList.length === 0) {
+            alert('No files found in metadata.');
+            overlay.style.display = 'none';
+            progress.style.display = 'none';
+            return;
+        }
+
+        var uploadFiles = [];
+        data.files.forEach(function(item) {
+            var source = item.source || item;
+            var target = item.target || source;
+            var file = fileMap[source];
+            if (!file) {
+                var lowerSource = source.toLowerCase();
+                for (var key in fileMap) {
+                    if (key.toLowerCase() === lowerSource) {
+                        file = fileMap[key];
+                        break;
+                    }
+                }
+            }
+            if (file) {
+                uploadFiles.push({ path: target, file: file, source: source });
+            }
+        });
+
+        var uploadFilePaths = new Set(uploadFiles.map(function(item) { return item.source; }));
+
+        var uploadPreviews = [];
+        previewList.forEach(function(item) {
+            var source = item.source.replace(/^\.\//, '').replace(/\\/g, '/');
+            var target = item.target.replace(/^\.\//, '').replace(/\\/g, '/');
+            var gamePath = item.game_path || '';
+            gamePath = gamePath.replace(/^\.\//, '').replace(/\\/g, '/');
+            
+            var gameMatched = uploadFilePaths.has(gamePath);
+            if (!gameMatched) {
+                var baseName = gamePath.split('/').pop();
+                for (var key of uploadFilePaths) {
+                    if (key.endsWith('/' + baseName) || key === baseName) {
+                        gameMatched = true;
+                        break;
+                    }
+                }
+            }
+            if (!gameMatched) {
+                console.log('Skip preview for missing game:', gamePath);
+                return;
+            }
+            
+            var file = fileMap[source];
+            if (!file) {
+                var lowerSource = source.toLowerCase();
+                for (var key in fileMap) {
+                    if (key.toLowerCase() === lowerSource) {
+                        file = fileMap[key];
+                        break;
+                    }
+                }
+            }
+            if (file) {
+                uploadPreviews.push({ source: source, target: target, file: file, gamePath: gamePath });
+            }
+        });
+
+        console.log('Matched files:', uploadFiles.length, 'Matched previews:', uploadPreviews.length);
+
+        var total = uploadFiles.length + uploadPreviews.length;
+        if (total === 0) {
+            alert('None of the files from metadata exist in the selected folder.');
+            overlay.style.display = 'none';
+            progress.style.display = 'none';
+            return;
+        }
+
+        var successCount = 0;
+        var failedCount = 0;
+        var skippedCount = 0;
+        var previewSuccessCount = 0;
+        var failedDetails = [];
+        var currentIndex = 0;
+
+        var allTasks = uploadFiles.map(function(item) {
+            return { type: 'file', path: item.path, file: item.file };
+        });
+        allTasks = allTasks.concat(uploadPreviews.map(function(item) {
+            return { type: 'preview', path: item.target, source: item.source, file: item.file };
+        }));
+
+        function uploadNext() {
+            if (currentIndex >= allTasks.length) {
+                var msg = lang.import_completed.replace('{success}', successCount).replace('{failed}', failedCount).replace('{skipped}', skippedCount)
+                if (previewSuccessCount > 0) {
+                    msg += ' ( ' + lang.preview + previewSuccessCount + ' )';
+                }
+                if (failedDetails.length > 0) {
+                    var details = failedDetails.slice(0, 5).map(function(d) {
+                        return d.file + ' (' + d.reason + ')';
+                    }).join('\n');
+                    if (failedDetails.length > 5) {
+                        details += '\n... and ' + (failedDetails.length - 5) + ' more (see console)';
+                    }
+                    msg += '\n\nFailed details:\n' + details;
+                    console.log('Full failed list:', failedDetails);
+                }
+                alert(msg);
+                closeImport();
+                overlay.style.display = 'none';
+                progress.style.display = 'none';
+                refreshCurrentDir();
+                return;
+            }
+
+            var task = allTasks[currentIndex];
+            var relPath = task.path;
+            var file = task.file;
+            var isPreview = (task.type === 'preview');
+
+            var percent = Math.round((currentIndex / total) * 100);
+            progress.textContent = (lang.uploading || 'Uploading...') + ' ' + percent + '% (' + (currentIndex+1) + '/' + total + ')';
+
+            var formDataUpload = new FormData();
+            formDataUpload.append('target_console', targetConsole);
+            formDataUpload.append('relative_path', relPath);
+            formDataUpload.append('file', file);
+            formDataUpload.append('overwrite', overwriteCheck.checked ? 'true' : 'false');
+
+            fetch('/api/upload_single', {
+                method: 'POST',
+                body: formDataUpload
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(result) {
+                if (result.success) {
+                    successCount++;
+                    if (isPreview) previewSuccessCount++;
+                } else if (result.skipped) {
+                    skippedCount++;
+                } else {
+                    failedCount++;
+                    failedDetails.push({file: relPath, reason: result.error || 'Unknown error'});
+                }
+                currentIndex++;
+                uploadNext();
+            })
+            .catch(function(err) {
+                failedCount++;
+                failedDetails.push({file: relPath, reason: err.message || 'Network error'});
+                currentIndex++;
+                uploadNext();
+            });
+        }
+
+        uploadNext();
+    })
+    .catch(function(err) {
+        alert(lang.network_error || 'Network error');
+        overlay.style.display = 'none';
+        progress.style.display = 'none';
+    });
+}
+
 function shutdownServer() {
     if (confirm(lang.shutdown_confirm)) {
         fetch('/shutdown', { method: 'GET' })
@@ -1596,9 +1945,20 @@ function addExtraAction(name, callback, cssClass = '', action = '') {
 
 addExtraAction(lang.batch_scrape, function(e) { batchScrape(e.target); }, 'primary', 'batch');
 addExtraAction(lang.upload_game, showUpload, 'primary', 'upload');
+addExtraAction(lang.batch_import_games || 'Batch Import Games', function(e) { showImportModal(); }, 'primary', 'import');
 addExtraAction(lang.backup_save, backupSave, 'primary', 'backup');
 addExtraAction(lang.restore_save, restoreSave, 'primary', 'restore');
 addExtraAction(lang.about || 'About', function() {alert(lang.about_info.replace('{version}', version));}, 'primary');
+
+document.getElementById('import-folder').addEventListener('change', function(e) {
+    var files = e.target.files;
+    if (files.length > 0) {
+        var folderName = files[0].webkitRelativePath.split('/')[0];
+        document.getElementById('import-folder-path').textContent = '📁 ' + folderName + ' (' + files.length + ' 个文件)';
+        console.log('Selected folder:', folderName, 'Files count:', files.length);
+        console.log('Sample file paths:', Array.from(files).slice(0, 5).map(f => f.webkitRelativePath));
+    }
+});
 
 document.getElementById('sd-select').addEventListener('change', loadDirs);
 loadDirs();

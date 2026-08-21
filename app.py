@@ -21,6 +21,8 @@ import time
 from flask import Flask, request, jsonify, send_file, render_template_string
 import pypinyin
 from pypinyin import Style
+import xml.etree.ElementTree as ET
+import shutil
 
 from scraper import Scraper, Rom
 from systems import systems, get_system_id
@@ -29,7 +31,7 @@ from language import Translator
 from name_converter import name_converter
 import input
 
-ver = "1.2.0"
+ver = "1.2.1"
 
 board_info = "Unknown"
 system_version = "Unknown"
@@ -86,7 +88,8 @@ for system in systems:
 
 app = Flask(__name__)
 
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024
+app.config['MAX_FORM_PARTS'] = 10000
 
 ALLOWED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
 PREVIEW_DIR_NAME = "Imgs"
@@ -261,10 +264,6 @@ def get_local_ip():
         return '127.0.0.1'
 
 def safe_filename(filename):
-    """
-    安全处理文件名：保留 Unicode（中文等），仅移除路径分隔符和 '..'，
-    防止目录遍历攻击。
-    """
     filename = filename.replace('/', '_').replace('\\', '_')
     while '..' in filename:
         filename = filename.replace('..', '_')
@@ -340,10 +339,6 @@ def get_subdirs(sd=None):
     return dirs
 
 def count_games_in_directory(dir_path, check_preview=True, recursive=True):
-    """
-    统计指定目录下的游戏文件数量和拥有预览图的游戏数量。
-    返回 (game_count, preview_count)
-    """
     game_count = 0
     preview_count = 0
     if recursive:
@@ -374,10 +369,6 @@ def count_games_in_directory(dir_path, check_preview=True, recursive=True):
     return game_count, preview_count
 
 def get_files_in_dir(subdir, lang=None):
-    """
-    返回指定目录下的子目录和文件（不递归）。
-    subdir 可以是 ''（根目录）、'NES' 或 'NES/子目录' 等。
-    """
     if subdir in ["APPS", "PORTS", "EASYRPG", "ONS"] or subdir.startswith("APPS/") or subdir.startswith("PORTS/") or subdir.startswith("EASYRPG/") or subdir.startswith("ONS/"):
         return []
     rom_root = get_rom_root()
@@ -462,7 +453,6 @@ def delete_game(game_rel_path):
     return True
 
 def get_system_version():
-    """尝试从常见文件读取系统版本"""
     version_files = [
         '/mnt/vendor/oem/version.ini',
         '/etc/version',
@@ -483,10 +473,6 @@ def get_system_version():
     return 'Unknown'
 
 def scrape_preview_for_path(game_rel_path: str) -> tuple[bool, str]:
-    """
-    根据游戏相对路径（相对于 ROM 根目录）刮削预览图。
-    返回 (success, preview_path_or_error)
-    """
     rom_root = get_rom_root()
     game_full_path = os.path.join(rom_root, game_rel_path)
     if not os.path.exists(game_full_path):
@@ -570,7 +556,7 @@ def scrape_preview_for_path(game_rel_path: str) -> tuple[bool, str]:
 
     return True, os.path.relpath(preview_path, rom_root)
 
-# ---------- API 路由 ----------
+# ---------- API routes ----------
 @app.route('/api/device_info')
 def device_info():
     return jsonify({
@@ -583,7 +569,7 @@ def device_info():
 def index():
     lang = request.args.get('lang') or system_lang
     translator = Translator(lang)
-    return render_template_string(HTML_TEMPLATE, _=translator.translate, lang=lang, ver=ver)
+    return render_template_string(HTML_TEMPLATE, _=translator.translate, lang=lang, ver=ver, systems=systems)
 
 @app.route('/api/sd', methods=['GET', 'POST'])
 def handle_sd():
@@ -592,8 +578,8 @@ def handle_sd():
         data = request.get_json()
         new_sd = data.get('sd')
         if new_sd in (1, 2):
-            current_sd = new_sd
             device.set_sd_storage(new_sd)
+            current_sd = device.get_sd_storage()
             return jsonify({'status': 'ok', 'sd': current_sd})
         return jsonify({'error': 'Invalid SD'}), 400
     else:
@@ -630,7 +616,6 @@ def get_preview():
 
 @app.route('/api/storage')
 def get_storage():
-    """获取当前 SD 卡的存储空间信息"""
     import shutil
     rom_root = get_rom_root()
     try:
@@ -744,7 +729,6 @@ def api_delete_game():
 
 @app.route('/api/update_preview', methods=['POST'])
 def update_preview():
-    """更新预览图：自动重命名并覆盖已有文件"""
     path = request.form.get('path')
     if not path:
         return jsonify({'error': 'Missing game path'}), 400
@@ -791,7 +775,6 @@ def scrape_preview():
 
 @app.route('/api/batch_scrape', methods=['POST'])
 def batch_scrape():
-    """批量刮削当前目录下所有游戏封面"""
     data = request.get_json()
     if not data or 'dir' not in data:
         return jsonify({'error': 'Missing directory'}), 400
@@ -954,7 +937,6 @@ def rename_game():
 
 @app.route('/api/upload_guide', methods=['POST'])
 def upload_guide():
-    """上传攻略文件（.txt）到游戏所在目录，并命名为 游戏主名.txt"""
     if 'path' not in request.form or 'guide_file' not in request.files:
         return jsonify({'error': 'Missing path or file'}), 400
 
@@ -984,7 +966,6 @@ def upload_guide():
 
 @app.route('/api/backup_save', methods=['POST'])
 def backup_save():
-    """备份存档：打包指定目录为 tar.gz 并下载"""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
 
@@ -1041,7 +1022,6 @@ def backup_save():
 
 @app.route('/api/restore_save', methods=['POST'])
 def restore_save():
-    """恢复存档：上传 tar.gz 文件并解压到根目录"""
     if 'backup_file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
 
@@ -1083,6 +1063,453 @@ def restore_save():
             os.unlink(temp_path)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/import_batch', methods=['POST'])
+def import_batch():
+    metadata_file = request.files.get('metadata')
+    target_console = request.form.get('target_console', '').strip()
+    overwrite = request.form.get('overwrite') == 'true'
+
+    if not metadata_file:
+        return jsonify({'error': translator.translate('Please select a metadata file')}), 400
+    if not target_console:
+        return jsonify({'error': translator.translate('Please select target console')}), 400
+    if target_console not in [s['name'] for s in systems]:
+        return jsonify({'error': 'Invalid target console'}), 400
+
+    uploaded_files = {}
+    file_list = request.files.getlist('files')
+    for file_obj in file_list:
+        raw_filename = file_obj.filename
+        decoded_filename = None
+        for encoding in ['utf-8', 'gbk', 'gb2312', 'cp936']:
+            try:
+                decoded_filename = raw_filename.encode('latin1').decode(encoding)
+                break
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                continue
+        if decoded_filename is None:
+            decoded_filename = raw_filename
+        uploaded_files[decoded_filename] = file_obj
+
+    if not uploaded_files:
+        return jsonify({'error': 'No source files uploaded'}), 400
+
+    print(f"[DEBUG] Uploaded {len(uploaded_files)} files, first 5: {list(uploaded_files.keys())[:5]}")
+
+    content = metadata_file.read().decode('utf-8', errors='ignore')
+    filename = metadata_file.filename.lower()
+
+    success = 0
+    failed = 0
+    skipped = 0
+    success_previews = 0
+    failed_details = []
+
+    rom_root = get_rom_root()
+    target_dir = os.path.join(rom_root, target_console)
+    os.makedirs(target_dir, exist_ok=True)
+
+    def find_file(rel_path):
+        if rel_path.startswith('./'):
+            rel_path = rel_path[2:]
+        if rel_path in uploaded_files:
+            return rel_path, uploaded_files[rel_path]
+        lower_rel = rel_path.lower()
+        for key in uploaded_files.keys():
+            if key.lower() == lower_rel:
+                return key, uploaded_files[key]
+        base_name = os.path.basename(rel_path).lower()
+        matches = [k for k in uploaded_files.keys() if os.path.basename(k).lower() == base_name]
+        if len(matches) == 1:
+            return matches[0], uploaded_files[matches[0]]
+        elif len(matches) > 1:
+            print(f"[DEBUG] Multiple case-insensitive matches for {rel_path}: {matches}")
+            return None, None
+        else:
+            print(f"[DEBUG] No match for {rel_path} (base: {base_name})")
+            return None, None
+
+    if filename.endswith('.xml'):
+        try:
+            root = ET.fromstring(content)
+        except Exception as e:
+            return jsonify({'error': f'Invalid XML: {str(e)}'}), 400
+
+        for game in root.findall('game'):
+            path_elem = game.find('path')
+            if path_elem is None or not path_elem.text:
+                failed += 1
+                failed_details.append({'file': 'unknown', 'reason': 'Missing path element'})
+                continue
+            file_rel = path_elem.text.strip()
+            found_key, src_file = find_file(file_rel)
+            if src_file is None:
+                failed += 1
+                failed_details.append({'file': file_rel, 'reason': 'File not found in source folder'})
+                continue
+
+            dest_file = os.path.join(target_dir, file_rel)
+            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+            if not overwrite and os.path.exists(dest_file):
+                skipped += 1
+            else:
+                try:
+                    src_file.save(dest_file)
+                    success += 1
+                except Exception as e:
+                    failed += 1
+                    failed_details.append({'file': file_rel, 'reason': f'Save error: {str(e)}'})
+                    continue
+
+            image_elem = game.find('image')
+            if image_elem is not None and image_elem.text:
+                image_rel = image_elem.text.strip()
+                found_img_key, src_img = find_file(image_rel)
+                if src_img is not None:
+                    dest_img = os.path.join(target_dir, found_img_key)
+                    os.makedirs(os.path.dirname(dest_img), exist_ok=True)
+                    if not overwrite and os.path.exists(dest_img):
+                        continue
+                    try:
+                        src_img.save(dest_img)
+                        success_previews += 1
+                    except Exception as e:
+                        print(f"Save preview failed for {image_rel}: {e}")
+
+    elif filename.endswith('.txt'):
+        lines = content.splitlines()
+        blocks = []
+        current_block = []
+        for line in lines:
+            if line.strip() == '':
+                if current_block:
+                    blocks.append(current_block)
+                    current_block = []
+            else:
+                current_block.append(line)
+        if current_block:
+            blocks.append(current_block)
+
+        for block in blocks:
+            has_game = any(line.startswith('game:') for line in block)
+            if not has_game:
+                continue
+
+            game_name = None
+            file_rel = None
+            extra_files = []
+            assets = {}
+
+            for line in block:
+                if line.startswith('game:'):
+                    game_name = line[len('game:'):].strip()
+                elif line.startswith('file:'):
+                    file_rel = line[len('file:'):].strip()
+                elif line.startswith('files:'):
+                    rest = line[len('files:'):].strip()
+                    if rest:
+                        extra_files.append(rest)
+                elif line.startswith('assets.'):
+                    if ':' in line:
+                        key, val = line.split(':', 1)
+                        key = key.strip()
+                        val = val.strip()
+                        assets[key] = val
+
+            if not file_rel and extra_files:
+                file_rel = extra_files[0]
+
+            if not game_name or not file_rel:
+                failed += 1
+                failed_details.append({'file': 'unknown', 'reason': 'Missing game or file field'})
+                continue
+
+            found_key, src_file = find_file(file_rel)
+            if src_file is None:
+                failed += 1
+                failed_details.append({'file': file_rel, 'reason': 'File not found in source folder'})
+                continue
+
+            dest_file = os.path.join(target_dir, file_rel)
+            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+            if not overwrite and os.path.exists(dest_file):
+                skipped += 1
+            else:
+                try:
+                    src_file.save(dest_file)
+                    success += 1
+                except Exception as e:
+                    failed += 1
+                    failed_details.append({'file': file_rel, 'reason': f'Save error: {str(e)}'})
+                    continue
+
+            preview_path_candidates = []
+            for asset_key in ['assets.box_front', 'assets.boxfront', 'assets.cover', 'assets.logo']:
+                if asset_key in assets:
+                    preview_path_candidates.append(assets[asset_key])
+            if not preview_path_candidates:
+                media_prefix = f"media/{game_name}/"
+                file_base = os.path.splitext(os.path.basename(file_rel))[0]
+                alt_media_prefix = f"media/{file_base}/"
+                img_names = ['boxFront.jpg', 'boxFront.png', 'cover.jpg', 'cover.png', 'folder.jpg', 'front.jpg']
+                for prefix in [media_prefix, alt_media_prefix]:
+                    for img_name in img_names:
+                        preview_path_candidates.append(prefix + img_name)
+
+            found_img = None
+            found_img_key = None
+            for candidate in preview_path_candidates:
+                fk, src_img = find_file(candidate)
+                if src_img is not None:
+                    found_img = candidate
+                    found_img_key = fk
+                    break
+
+            if found_img and found_img_key:
+                base_name = os.path.splitext(os.path.basename(file_rel))[0]
+                ext = os.path.splitext(found_img)[1]
+                dest_img_dir = os.path.join(target_dir, PREVIEW_DIR_NAME)
+                os.makedirs(dest_img_dir, exist_ok=True)
+                dest_img = os.path.join(dest_img_dir, base_name + ext)
+                if not overwrite and os.path.exists(dest_img):
+                    continue
+                try:
+                    src_img = uploaded_files.get(found_img_key)
+                    if src_img is not None:
+                        src_img.save(dest_img)
+                        success_previews += 1
+                except Exception as e:
+                    print(f"Save preview failed for {found_img}: {e}")
+            else:
+                print(f"Preview not found for game: {game_name}")
+
+    else:
+        return jsonify({'error': 'Unsupported metadata format'}), 400
+
+    return jsonify({
+        'success': success,
+        'failed': failed,
+        'skipped': skipped,
+        'failed_details': failed_details,
+        'message': translator.translate('Import completed!\nSuccess: {success}, Failed: {failed}, Skipped: {skipped}, Preview: {success_previews}.').format(success=success, failed=failed, skipped=skipped, success_previews=success_previews)
+    })
+
+def normalize_path(path):
+    path = path.strip()
+    path = path.replace('\\', '/')
+    if path.startswith('./'):
+        path = path[2:]
+    if path.startswith('/'):
+        path = path[1:]
+    return path
+
+@app.route('/api/import_analyze', methods=['POST'])
+def import_analyze():
+    metadata_file = request.files.get('metadata')
+    target_console = request.form.get('target_console', '').strip()
+    use_display_name = request.form.get('use_display_name', 'false').lower() == 'true'
+
+    if not metadata_file:
+        return jsonify({'error': translator.translate('Please select a metadata file')}), 400
+    if not target_console:
+        return jsonify({'error': translator.translate('Please select target console')}), 400
+    if target_console not in [s['name'] for s in systems]:
+        return jsonify({'error': 'Invalid target console'}), 400
+
+    if target_console in ARCADE_SYSTEMS:
+        use_display_name = False
+
+    content = metadata_file.read().decode('utf-8', errors='ignore')
+    filename = metadata_file.filename.lower()
+    file_list = []
+    preview_list = []
+
+    if filename.endswith('.xml'):
+        try:
+            root = ET.fromstring(content)
+        except Exception as e:
+            return jsonify({'error': f'Invalid XML: {str(e)}'}), 400
+        for game in root.findall('game'):
+            path_elem = game.find('path')
+            if path_elem is None or not path_elem.text:
+                continue
+            game_rel_path = normalize_path(path_elem.text.strip())
+
+            display_name = None
+            if use_display_name:
+                name_elem = game.find('name')
+                if name_elem is not None and name_elem.text:
+                    display_name = name_elem.text.strip()
+                else:
+                    display_name = os.path.splitext(os.path.basename(game_rel_path))[0]
+
+            target_game_path = game_rel_path
+            if display_name:
+                ext = os.path.splitext(game_rel_path)[1]
+                target_game_path = os.path.join(os.path.dirname(game_rel_path), display_name + ext)
+                target_game_path = target_game_path.replace('\\', '/')
+
+            file_list.append({
+                'source': game_rel_path,
+                'target': target_game_path
+            })
+
+            game_dir = os.path.dirname(game_rel_path)
+            game_base = os.path.basename(game_rel_path)
+            game_name_without_ext = os.path.splitext(game_base)[0]
+
+            image_elem = game.find('image')
+            if image_elem is None or not image_elem.text:
+                image_elem = game.find('boxart')
+            if image_elem is not None and image_elem.text:
+                img_source = normalize_path(image_elem.text.strip())
+                ext = os.path.splitext(img_source)[1]
+                if not ext:
+                    ext = '.png'
+                if display_name:
+                    target_filename = display_name + ext
+                else:
+                    target_filename = game_name_without_ext + ext
+                if game_dir:
+                    target_path = os.path.join(game_dir, 'Imgs', target_filename)
+                else:
+                    target_path = os.path.join('Imgs', target_filename)
+                target_path = target_path.replace('\\', '/')
+                preview_list.append({
+                    'source': img_source,
+                    'target': target_path,
+                    'game_path': game_rel_path,
+                    'display_name': display_name
+                })
+    elif filename.endswith('.txt'):
+        lines = content.splitlines()
+        blocks = []
+        current_block = []
+        for line in lines:
+            if line.strip() == '':
+                if current_block:
+                    blocks.append(current_block)
+                    current_block = []
+            else:
+                current_block.append(line)
+        if current_block:
+            blocks.append(current_block)
+
+        for block in blocks:
+            has_game = any(line.startswith('game:') for line in block)
+            if not has_game:
+                continue
+            game_name = None
+            file_rel = None
+            extra_files = []
+            assets = {}
+            for line in block:
+                if line.startswith('game:'):
+                    game_name = line[len('game:'):].strip()
+                elif line.startswith('file:'):
+                    file_rel = normalize_path(line[len('file:'):].strip())
+                elif line.startswith('files:'):
+                    rest = normalize_path(line[len('files:'):].strip())
+                    if rest:
+                        extra_files.append(rest)
+                elif line.startswith('assets.'):
+                    if ':' in line:
+                        key, val = line.split(':', 1)
+                        assets[key.strip()] = normalize_path(val.strip())
+
+            if not file_rel and extra_files:
+                file_rel = extra_files[0]
+
+            if not game_name or not file_rel:
+                continue
+
+            display_name = None
+            if use_display_name:
+                display_name = game_name
+                if not display_name:
+                    display_name = os.path.splitext(os.path.basename(file_rel))[0]
+
+            target_game_path = file_rel
+            if display_name:
+                ext = os.path.splitext(file_rel)[1]
+                target_game_path = os.path.join(os.path.dirname(file_rel), display_name + ext)
+                target_game_path = target_game_path.replace('\\', '/')
+
+            file_list.append({
+                'source': file_rel,
+                'target': target_game_path
+            })
+
+            base_name = os.path.splitext(os.path.basename(file_rel))[0]
+
+            preview_candidates = []
+            for asset_key in ['assets.box_front', 'assets.boxfront', 'assets.cover', 'assets.logo']:
+                if asset_key in assets:
+                    preview_candidates.append(assets[asset_key])
+            if not preview_candidates:
+                media_prefix = f"media/{base_name}/"
+                for img_name in ['boxFront.jpg', 'boxFront.png', 'cover.jpg', 'cover.png', 'folder.jpg']:
+                    preview_candidates.append(media_prefix + img_name)
+
+            for source_path in preview_candidates:
+                ext = os.path.splitext(source_path)[1]
+                if not ext:
+                    ext = '.png'
+                if display_name:
+                    target_filename = display_name + ext
+                else:
+                    target_filename = base_name + ext
+                target_path = f"Imgs/{target_filename}"
+                preview_list.append({
+                    'source': source_path,
+                    'target': target_path,
+                    'game_path': file_rel,
+                    'display_name': display_name
+                })
+    else:
+        return jsonify({'error': 'Unsupported metadata format'}), 400
+
+    return jsonify({
+        'files': file_list,
+        'previews': preview_list,
+        'count': len(file_list) + len(preview_list)
+    })
+
+@app.route('/api/upload_single', methods=['POST'])
+def upload_single():
+    target_console = request.form.get('target_console', '').strip()
+    relative_path = request.form.get('relative_path', '').strip()
+    overwrite = request.form.get('overwrite') == 'true'
+
+    if not target_console or not relative_path:
+        return jsonify({'error': 'Missing target_console or relative_path'}), 400
+    if target_console not in [s['name'] for s in systems]:
+        return jsonify({'error': 'Invalid target console'}), 400
+    if '..' in relative_path or relative_path.startswith('/'):
+        return jsonify({'error': 'Invalid relative path'}), 400
+
+    file_obj = request.files.get('file')
+    if not file_obj:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    rom_root = get_rom_root()
+    dest_dir = os.path.join(rom_root, target_console)
+    dest_full_path = os.path.join(dest_dir, relative_path)
+
+    if not os.path.abspath(dest_full_path).startswith(os.path.abspath(rom_root)):
+        return jsonify({'error': 'Invalid path'}), 400
+
+    os.makedirs(os.path.dirname(dest_full_path), exist_ok=True)
+
+    if not overwrite and os.path.exists(dest_full_path):
+        return jsonify({'error': 'File already exists', 'skipped': True}), 200
+
+    try:
+        file_obj.save(dest_full_path)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Save failed: {str(e)}'}), 500
+
 @app.route('/shutdown', methods=['GET'])
 def shutdown():
     import threading
@@ -1096,7 +1523,7 @@ def shutdown():
     threading.Thread(target=force_exit).start()
     return "服务器正在关闭...", 200
 
-# ---------- 前端 HTML ----------
+# ---------- Load HTML ----------
 base_path = os.path.dirname(os.path.abspath(__file__))
 html_path = os.path.join(base_path, "web", "template.html")
 if os.path.exists(html_path):
@@ -1107,7 +1534,6 @@ else:
     os._exit(0)
 
 def exit_on_key():
-    """后台线程：监听任意物理按键，按下即退出程序"""
     print("[DEBUG] 按键监听线程已启动，按 SELECT 退出")
     while True:
         input.check()

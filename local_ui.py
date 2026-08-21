@@ -14,12 +14,10 @@ import app
 import input
 from graphic import UserInterface
 from app import (
-    get_rom_root, get_files_in_dir, get_subdirs,
-    delete_game, get_preview_path, get_guide_path,
-    scrape_preview, scrape_preview_for_path, batch_scrape, detect_system_from_ext,
-    ARCADE_SYSTEMS, name_converter, translator, scraper, system_lang
+    get_files_in_dir, get_subdirs, delete_game,
+    scrape_preview_for_path, system_lang
 )
-from systems import systems, get_system_id
+
 from language import Translator
 from anbernic import Anbernic
 
@@ -307,18 +305,26 @@ class LocalUI:
             result = self._scrape_single(self.current_file)
             if result:
                 self.show_message(self.lang.translate("Scrape successful!"))
-                file_path = self.current_file['path']  # 保存路径
+                file_path = self.current_file['path']
                 if self.current_path:
                     self.load_directory(self.current_path)
                 else:
                     self.load_root()
-                self._find_and_select_file(file_path)
+                if self._find_and_select_file(file_path):
+                    self.current_file = self.current_items[self.selected_index]
+                else:
+                    self.current_file = None
+                    self.mode = "browse"
+                    return
             else:
                 self.show_message(self.lang.translate("Scrape failed, please check network"))
         except Exception as e:
             self.show_message(self.lang.translate("Error: {error}").format(error=str(e)))
 
-        self.mode = "browse"
+        if self.current_file:
+            self.mode = "detail"
+        else:
+            self.mode = "browse"
 
     def _scrape_single(self, file_info):
         try:
@@ -349,6 +355,9 @@ class LocalUI:
                     self.show_message(self.lang.translate("Delete failed"))
             except Exception as e:
                 self.show_message(self.lang.translate("Error: {error}").format(error=str(e)))
+        else:
+            self.mode = "detail"
+            return
         self.mode = "browse"
 
     def do_delete_preview(self):
@@ -356,7 +365,7 @@ class LocalUI:
             return
         if not self.current_file.get('preview'):
             self.show_message(self.lang.translate("This game has no preview"))
-            self.mode = "browse"
+            self.mode = "detail"
             return
         if self.show_confirm(self.lang.translate('Delete preview image for "{name}"?').format(name=self.current_file['name'])):
             try:
@@ -366,12 +375,24 @@ class LocalUI:
                     self.show_message(self.lang.translate("Preview image deleted"))
                     file_path = self.current_file['path']
                     self.load_directory(self.current_path)
-                    self._find_and_select_file(file_path)
+                    if self._find_and_select_file(file_path):
+                        self.current_file = self.current_items[self.selected_index]
+                    else:
+                        self.current_file = None
+                        self.mode = "browse"
+                        return
                 else:
                     self.show_message(self.lang.translate("Preview does not exist"))
             except Exception as e:
                 self.show_message(self.lang.translate("Error: {error}").format(error=str(e)))
-        self.mode = "browse"
+        else:
+            self.mode = "detail"
+            return
+
+        if self.current_file:
+            self.mode = "detail"
+        else:
+            self.mode = "browse"
 
     def do_batch_scrape(self):
         if not self.current_path:
@@ -687,13 +708,13 @@ class LocalUI:
         ui.draw_clear()
         ui.draw_rectangle_r([40, 120, self.screen_width - 40, self.screen_height - 120],
                             radius=12, fill='#1a1a2e', outline=self.colors['border'])
-        ui.draw_text((self.screen_width // 2, 150), "☢", font=40, color=self.colors['warning'], anchor="mm")
+        ui.draw_text((self.screen_width // 2, self.screen_height // 2 - 60), "☢", font=40, color=self.colors['warning'], anchor="mm")
         lines = self._wrap_text(text, 30)
-        y = 200
+        y = self.screen_height // 2
         for line in lines:
             ui.draw_text((self.screen_width // 2, y), line, font=20, color=self.colors['text'], anchor="mm")
             y += 28
-        ui.draw_text((self.screen_width // 2, y + 20),
+        ui.draw_text((self.screen_width // 2, y + 50),
                      self.lang.translate("A: Confirm  B: Cancel"),
                      font=18, color=self.colors['text_dim'], anchor="mm")
         ui.draw_paint()
