@@ -24,6 +24,7 @@ from pypinyin import Style
 import xml.etree.ElementTree as ET
 import shutil
 
+from main import hw_info
 from scraper import Scraper, Rom
 from systems import systems, get_system_id
 from anbernic import Anbernic
@@ -31,31 +32,10 @@ from language import Translator
 from name_converter import name_converter
 import input
 
-ver = "1.2.1"
+ver = "1.2.2"
 
 board_info = "Unknown"
 system_version = "Unknown"
-
-try:
-    board_info = Path("/mnt/vendor/oem/board.ini").read_text().splitlines()[0]
-    board_mapping = {
-        'RGcubexx': 1,
-        'RG34xx': 2,
-        'RG34xxSP': 2,
-        'RGSP': 2,
-        'RG28xx': 3,
-        'RG35xx+_P': 4,
-        'RG35xxH': 5,
-        'RG35xxSP': 6,
-        'RG40xxH': 7,
-        'RG40xxV': 8,
-        'RG35xxPRO': 9,
-        "RGds": 10,
-        "RGdsplus": 11
-    }
-    hw_info = board_mapping.get(board_info, 5)
-except:
-    hw_info = 5
 
 try:
     import sdl2
@@ -556,7 +536,152 @@ def scrape_preview_for_path(game_rel_path: str) -> tuple[bool, str]:
 
     return True, os.path.relpath(preview_path, rom_root)
 
+def batch_rename_files(dir_path: str, operation: str, **kwargs) -> dict:
+    from local_ui import LocalUI
+    ui = LocalUI()
+    from app import get_rom_root, get_preview_path, get_files_in_dir, PREVIEW_DIR_NAME
+    import os
+    import re
+
+    rom_root = get_rom_root()
+    target_dir = os.path.join(rom_root, dir_path)
+    if not os.path.isdir(target_dir):
+        return {'error': 'Directory not found'}
+
+    items = get_files_in_dir(dir_path)
+    files = [f for f in items if not f['is_dir']]
+
+    success = 0
+    failed = 0
+    skipped = 0
+    details = []
+
+    def get_pinyin(text, first=False):
+        text_clean = text.replace(" ", "")
+        if first:
+            return pypinyin.pinyin(text_clean, style=Style.FIRST_LETTER)[0][0].upper()
+        return ''.join([item[0] for item in pypinyin.pinyin(text_clean, style=Style.FIRST_LETTER)]).upper()
+
+    if operation == "add_prefix":
+        prefix_type = kwargs.get('prefix_type', 'numbers')
+        if prefix_type == 'numbers':
+            digits = ui.get_digits("Set digit count", "Digits", 3)
+            if digits == -1:
+                return {'error': translator.translate('Cancelled by user')}
+            start = ui.get_digits("Set start number", "Start from", 1, 5, 0)
+            if start == -1:
+                return {'error': translator.translate('Cancelled by user')}
+        separator = ui.get_char("Set separator", "Separator", [" ", "-", "_", ""])
+        if separator is None:
+            return {'error': translator.translate('Cancelled by user')}
+
+    if operation == "add_suffix":
+        bracket_type = ui.get_char("Set suffix brackets", "Brackets", ["[...]", "(...)"])
+        if bracket_type is None:
+            return {'error': translator.translate('Cancelled by user')}
+        separator = ui.get_char("Set separator", "Separator", ["", " ", "-", "_"])
+        if separator is None:
+            return {'error': translator.translate('Cancelled by user')}
+
+    if operation == "remove_prefix":
+        n = ui.get_digits("Set number of characters to delete", "Digits", 1, 9)
+        if n == -1:
+            return {'error': translator.translate('Cancelled by user')}
+
+    for file_info in files:
+        old_rel_path = file_info['path']
+        old_full_path = os.path.join(rom_root, old_rel_path)
+        old_basename = os.path.basename(old_full_path)
+        name_without_ext, ext = os.path.splitext(old_basename)
+        name_without_ext = name_without_ext.strip()
+        new_name = name_without_ext
+
+        if operation == "add_prefix":
+            if prefix_type == 'numbers':
+                prefix = str(start + success).zfill(digits)
+            else:
+                prefix = get_pinyin(name_without_ext, first=True)
+            new_name = prefix + separator + new_name
+
+        elif operation == "add_suffix":
+            if bracket_type in ['[...]', '(...)']:
+                pinyin_str = get_pinyin(name_without_ext)
+                if pinyin_str:
+                    suffix = bracket_type[0] + pinyin_str + bracket_type[-1]
+                else:
+                    suffix = ''
+                if suffix:
+                    if separator:
+                        new_name = new_name + separator + suffix
+                    else:
+                        new_name = new_name + suffix
+            else:
+                suffix = bracket_type[0] + "suffix" + bracket_type[1]
+                if separator:
+                    new_name = new_name + separator + suffix
+                else:
+                    new_name = new_name + suffix
+
+        elif operation == "remove_prefix":
+            if len(new_name) > n:
+                new_name = new_name[n:].strip()
+            else:
+                skipped += 1
+                details.append({'file': old_basename, 'reason': 'Prefix too short'})
+                continue
+
+        elif operation == "remove_suffix":
+            new_name = re.sub(r'[\(\[]([^)]*)[\)\]]$', '', new_name).rstrip()
+            if new_name == name_without_ext:
+                skipped += 1
+                details.append({'file': old_basename, 'reason': 'No suffix to remove'})
+                continue
+
+        else:
+            skipped += 1
+            details.append({'file': old_basename, 'reason': f'Unknown operation {operation}'})
+            continue
+
+        new_full_path = os.path.join(os.path.dirname(old_full_path), new_name + ext)
+        if os.path.exists(new_full_path):
+            failed += 1
+            details.append({'file': old_basename, 'reason': 'Target file exists'})
+            continue
+
+        try:
+            os.rename(old_full_path, new_full_path)
+        except Exception as e:
+            failed += 1
+            details.append({'file': old_basename, 'reason': str(e)})
+            continue
+
+        old_preview = get_preview_path(old_full_path)
+        if old_preview and os.path.exists(old_preview):
+            preview_ext = os.path.splitext(old_preview)[1]
+            preview_dir = os.path.join(os.path.dirname(old_full_path), PREVIEW_DIR_NAME)
+            new_preview = os.path.join(preview_dir, new_name + preview_ext)
+            try:
+                if os.path.exists(new_preview):
+                    details.append({'file': old_basename, 'reason': 'Preview target exists, skipped'})
+                else:
+                    os.rename(old_preview, new_preview)
+            except Exception as e:
+                details.append({'file': old_basename, 'reason': f'Preview rename failed: {str(e)}'})
+
+        success += 1
+
+    return {
+        'success': success,
+        'failed': failed,
+        'skipped': skipped,
+        'details': details
+    }
+
+def is_arcade(rom_path):
+    return (rom_path in ARCADE_SYSTEMS)
+
 # ---------- API routes ----------
+
 @app.route('/api/device_info')
 def device_info():
     return jsonify({
@@ -1509,6 +1634,156 @@ def upload_single():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': f'Save failed: {str(e)}'}), 500
+
+@app.route('/api/batch_rename', methods=['POST'])
+def batch_rename():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+
+    current_dir = data.get('path', '').strip()
+    operation = data.get('operation')
+    target_console = current_dir.split('/')[0] if current_dir else ''
+    if target_console in ARCADE_SYSTEMS:
+        return jsonify({'error': translator.translate('Cannot rename arcade games')}), 400
+
+    rom_root = get_rom_root()
+    target_path = os.path.join(rom_root, current_dir)
+    if not os.path.isdir(target_path):
+        return jsonify({'error': 'Directory not found'}), 404
+
+    files = get_files_in_dir(current_dir)
+    game_files = [f for f in files if not f['is_dir'] and os.path.dirname(f['path']) == current_dir]
+    if not game_files:
+        return jsonify({'error': translator.translate('No game files in current directory')}), 400
+
+    if operation == 'add_prefix':
+        prefix_type = data.get('prefix_type', 'numbers')
+        digits = int(data.get('digits', 2))
+        start = int(data.get('start', 0))
+        separator = data.get('separator', ' ')
+        if digits < 1 or start < 0:
+            return jsonify({'error': translator.translate('Please enter a valid number')}), 400
+    elif operation == 'add_suffix':
+        bracket_type = data.get('bracket_type', '()')
+        separator = data.get('separator', '')
+    elif operation == 'remove_prefix':
+        n = int(data.get('n', 1))
+        if n < 1:
+            return jsonify({'error': translator.translate('Please enter a valid number')}), 400
+    elif operation == 'remove_suffix':
+        pass
+    else:
+        return jsonify({'error': translator.translate('Invalid operation')}), 400
+
+    renamed_count = 0
+    failed_count = 0
+    skipped_count = 0
+    details = []
+
+    for file_info in game_files:
+        old_rel_path = file_info['path']
+        old_full_path = os.path.join(rom_root, old_rel_path)
+        old_basename = os.path.basename(old_rel_path)
+        old_name_without_ext, ext = os.path.splitext(old_basename)
+        new_name_without_ext = old_name_without_ext
+
+        if operation == 'add_prefix':
+            if prefix_type == 'numbers':
+                prefix = str(start).zfill(digits)
+                start += 1
+            elif prefix_type == 'letters':
+                prefix = ''
+                n = start
+                while True:
+                    n, remainder = divmod(n - 1, 26)
+                    prefix = chr(65 + remainder) + prefix
+                    if n == 0:
+                        break
+                start += 1
+                prefix = prefix.zfill(digits)[-digits:] if digits > 0 else prefix
+            elif prefix_type == 'mixed':
+                prefix = str(start).zfill(digits) + chr(65 + (start % 26))
+                start += 1
+            elif prefix_type == 'pinyin':
+                try:
+                    from pypinyin import lazy_pinyin, Style
+                    pinyin_list = lazy_pinyin(old_name_without_ext[0], style=Style.FIRST_LETTER)
+                    prefix = ''.join(p[0].upper() for p in pinyin_list if p and p[0].isalpha())
+                except:
+                    prefix = old_name_without_ext[0].upper() if old_name_without_ext else ''
+            else:
+                prefix = ''
+            new_name_without_ext = prefix + separator + old_name_without_ext if prefix else old_name_without_ext
+
+        elif operation == 'add_suffix':
+            try:
+                from pypinyin import lazy_pinyin, Style
+                pinyin_list = lazy_pinyin(old_name_without_ext, style=Style.FIRST_LETTER)
+                suffix = ''.join(p[0].upper() for p in pinyin_list if p and p[0].isalpha())
+            except:
+                suffix = ''
+            if not suffix:
+                suffix = old_name_without_ext[:3].upper()
+            if separator:
+                new_name_without_ext = old_name_without_ext + separator + suffix
+            else:
+                new_name_without_ext = old_name_without_ext + suffix
+            if bracket_type == '()':
+                new_name_without_ext = old_name_without_ext + ' (' + suffix + ')' if separator else old_name_without_ext + '(' + suffix + ')'
+            elif bracket_type == '[]':
+                new_name_without_ext = old_name_without_ext + ' [' + suffix + ']' if separator else old_name_without_ext + '[' + suffix + ']'
+
+        elif operation == 'remove_prefix':
+            if len(old_name_without_ext) > n:
+                new_name_without_ext = old_name_without_ext[n:]
+            else:
+                new_name_without_ext = old_name_without_ext
+
+        elif operation == 'remove_suffix':
+            import re
+            new_name_without_ext = re.sub(r'[\(（\[【][^）\]】]*[\)）\]】]$', '', old_name_without_ext).strip()
+
+        if new_name_without_ext == old_name_without_ext:
+            skipped_count += 1
+            continue
+
+        new_basename = new_name_without_ext + ext
+        new_rel_path = os.path.join(os.path.dirname(old_rel_path), new_basename)
+        new_full_path = os.path.join(rom_root, new_rel_path)
+
+        if os.path.exists(new_full_path):
+            failed_count += 1
+            details.append({'file': old_rel_path, 'reason': translator.translate('New name already exists: {name}').format(name=new_basename)})
+            continue
+
+        try:
+            os.rename(old_full_path, new_full_path)
+            renamed_count += 1
+
+            old_preview = get_preview_path(old_full_path)
+            if old_preview and os.path.exists(old_preview):
+                old_preview_ext = os.path.splitext(old_preview)[1]
+                new_preview_dir = os.path.join(os.path.dirname(new_full_path), PREVIEW_DIR_NAME)
+                if not os.path.exists(new_preview_dir):
+                    os.makedirs(new_preview_dir, exist_ok=True)
+                new_preview_name = new_name_without_ext + old_preview_ext
+                new_preview_path = os.path.join(new_preview_dir, new_preview_name)
+                if not os.path.exists(new_preview_path):
+                    os.rename(old_preview, new_preview_path)
+                else:
+                    pass
+        except Exception as e:
+            failed_count += 1
+            details.append({'file': old_rel_path, 'reason': str(e)})
+
+    return jsonify({
+        'success': renamed_count,
+        'failed': failed_count,
+        'skipped': skipped_count,
+        'details': details,
+        'message': translator.translate('Rename completed! Success: {success}, Failed: {failed}, Skipped: {skipped}').format(success=renamed_count, failed=failed_count, skipped=skipped_count)
+    })
 
 @app.route('/shutdown', methods=['GET'])
 def shutdown():

@@ -1,6 +1,6 @@
 import ctypes
 import os
-from app import hw_info
+from main import hw_info
 from typing import Optional
 import time
 import sdl2
@@ -51,17 +51,10 @@ class UserInterface:
             cls._instance = super(UserInterface, cls).__new__(cls)
         return cls._instance
 
-    ###
-    # WINDOW MANAGEMENT
-    ###
-
     def create_image(self):
-        """Create a new blank RGBA image for drawing."""
         return Image.new("RGBA", (self.screen_width, self.screen_height), color="black")
 
     def draw_start(self):
-        """Initialize drawing for a new frame."""
-        # Render directly to the screen
         sdl2.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255)
         sdl2.SDL_RenderClear(self.renderer)
         self.active_image = self.create_image()
@@ -73,7 +66,7 @@ class UserInterface:
             sdl2.SDL_WINDOWPOS_UNDEFINED,
             sdl2.SDL_WINDOWPOS_UNDEFINED,
             0,
-            0,  # Size ignored in fullscreen mode
+            0,
             sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP | sdl2.SDL_WINDOW_SHOWN,
         )
 
@@ -100,7 +93,6 @@ class UserInterface:
         return renderer
 
     def draw_paint(self):
-        # Convert PIL image to SDL2 texture at base resolution
         if hw_info == 3:
             rotated_image = self.active_image.rotate(90, expand=True)
             rgba_data = rotated_image.tobytes()
@@ -120,7 +112,6 @@ class UserInterface:
         texture = sdl2.SDL_CreateTextureFromSurface(self.renderer, surface)
         sdl2.SDL_FreeSurface(surface)
 
-        # Get current window size
         window_width = ctypes.c_int()
         window_height = ctypes.c_int()
         sdl2.SDL_GetWindowSize(
@@ -128,7 +119,6 @@ class UserInterface:
         )
         window_width, window_height = window_width.value, window_height.value
 
-        # Let the user decide whether to stretch to fit or preserve aspect ratio
         if not self.opt_stretch:
             scale = min(
                 window_width / temp_width, window_height / temp_height
@@ -149,10 +139,6 @@ class UserInterface:
         sdl2.SDL_DestroyRenderer(self.renderer)
         sdl2.SDL_DestroyWindow(self.window)
         sdl2.SDL_Quit()
-
-    ###
-    # DRAWING FUNCTIONS
-    ###
 
     def draw_clear(self):
         self.active_draw.rectangle(

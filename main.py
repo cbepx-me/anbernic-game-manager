@@ -4,6 +4,28 @@
 import os
 import sys
 import zipfile
+from pathlib import Path
+
+try:
+    board_info = Path("/mnt/vendor/oem/board.ini").read_text().splitlines()[0]
+    board_mapping = {
+        'RGcubexx': 1,
+        'RG34xx': 2,
+        'RG34xxSP': 2,
+        'RGSP': 2,
+        'RG28xx': 3,
+        'RG35xx+_P': 4,
+        'RG35xxH': 5,
+        'RG35xxSP': 6,
+        'RG40xxH': 7,
+        'RG40xxV': 8,
+        'RG35xxPRO': 9,
+        "RGds": 10,
+        "RGdsplus": 11
+    }
+    hw_info = board_mapping.get(board_info, 5)
+except:
+    hw_info = 5
 
 def ensure_requests():
     try:

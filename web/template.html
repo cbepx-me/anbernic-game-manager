@@ -204,6 +204,26 @@
             width:100%;
             border:1px solid #45475a;
         }
+        #batch-rename-modal {
+            display:none;
+            position:fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background:rgba(0,0,0,0.7);
+            justify-content:center;
+            align-items:center;
+            z-index:1000;
+            padding:15px;
+        }
+        #batch-rename-modal > div {
+            background:#1e1e2e;
+            padding:25px;
+            border-radius:16px;
+            min-width:280px;
+            max-width:500px;
+            width:100%;
+            border:1px solid #45475a;
+        }
 
         /* ========== Mobile ========== */
         @media screen and (max-width: 768px) {
@@ -293,8 +313,8 @@
             <option value="1">SD1</option>
             <option value="2" selected>SD2</option>
         </select>
-        <button onclick="loadDirs()">{{ _('Reset') }}</button>
-        <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn-secondary">{{ _('Show missing preview') }}</button>
+        <button onclick="loadDirs()" class="btn">{{ _('Reset') }}</button>
+        <button onclick="toggleMissingOnly()" id="missing-toggle" class="btn">{{ _('Show missing preview') }}</button>
         <select id="sort-select" onchange="applySort()">
             <option value="name">{{ _('Sort by name') }}</option>
             <option value="size">{{ _('Sort by size') }}</option>
@@ -318,12 +338,12 @@
 <div id="main">
     <div id="detail">
         <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <button id="scrape-preview-input" class="btn btn-secondary" onclick="scrapePreview(this)">{{ _('Scrape preview') }}</button>
-            <button id="update-preview-btn" class="btn btn-secondary" onclick="selectPreviewFile()">{{ _('Upload preview') }}</button>
+            <button id="scrape-preview-input" class="btn btn" onclick="scrapePreview(this)">{{ _('Scrape preview') }}</button>
+            <button id="update-preview-btn" class="btn btn" onclick="selectPreviewFile()">{{ _('Upload preview') }}</button>
             <input type="file" id="update-preview-input" accept="image/*" style="display:none;" onchange="updatePreview()">
-            <button id="upload-guide-btn" class="btn btn-secondary" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
+            <button id="upload-guide-btn" class="btn btn" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
             <input type="file" id="guide-input" accept=".txt" style="display:none;" onchange="uploadGuide()">
-            <button id="rename-game-input" class="btn btn-secondary" onclick="renameCurrent()">{{ _('Rename game') }}</button>
+            <button id="rename-game-input" class="btn btn" onclick="renameCurrent()">{{ _('Rename game') }}</button>
             <button id="delete-preview-btn" class="btn btn-danger" onclick="deletePreview()">{{ _('Delete preview') }}</button>
             <button id="delete-guide-btn" class="btn btn-danger" onclick="deleteGuide()">{{ _('Delete guide') }}</button>
             <button id="delete-game-btn" class="btn btn-danger" onclick="deleteCurrent()">{{ _('Delete game') }}</button>
@@ -392,10 +412,77 @@
         
     </div>
 </div>
+<div id="batch-rename-modal">
+    <div>
+        <h3>{{ _('Batch Rename Files') }}</h3>
+        <div class="flex-row">
+            <label>{{ _('Operation:') }}
+                <select id="rename-operation">
+                    <option value="add_prefix">{{ _('Add Prefix') }}</option>
+                    <option value="add_suffix">{{ _('Add Suffix') }}</option>
+                    <option value="remove_prefix">{{ _('Remove Prefix') }}</option>
+                    <option value="remove_suffix">{{ _('Remove Suffix') }}</option>
+                </select>
+            </label>
+        </div>
+        <div id="rename-prefix-options">
+            <div class="flex-row">
+                <label>{{ _('Prefix Type:') }}
+                    <select id="rename-prefix-type">
+                        <option value="numbers">{{ _('Numbers') }}</option>
+                        <option value="letters">{{ _('Letters') }}</option>
+                        <option value="mixed">{{ _('Mixed') }}</option>
+                        <option value="pinyin">{{ _('Pinyin Initials') }}</option>
+                    </select>
+                </label>
+            </div>
+            <div class="flex-row">
+                <label>{{ _('Digits:') }} <input type="number" id="rename-digits" value="2" min="1" max="10" style="width:60px;"></label>
+                <label>{{ _('Start from:') }} <input type="number" id="rename-start" value="0" min="0" style="width:60px;"></label>
+                <label>{{ _('Separator:') }}
+                    <select id="rename-separator">
+                        <option value=" ">{{ _('Space') }}</option>
+                        <option value="-">-</option>
+                        <option value="_">_</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+        <div id="rename-suffix-options" style="display:none;">
+            <div class="flex-row">
+                <label>{{ _('Brackets:') }}
+                    <select id="rename-bracket">
+                        <option value="[]">[ ]</option>
+                        <option value="()">( )</option>
+                    </select>
+                </label>
+                <label><input type="checkbox" id="rename-suffix-separator">{{ _('Add Space between') }}</label>
+            </div>
+        </div>
+        <div id="rename-remove-prefix-options" style="display:none;">
+            <div class="flex-row">
+                <label>{{ _('Remove N characters:') }} <input type="number" id="rename-remove-n" value="1" min="1" max="20" style="width:60px;"></label>
+            </div>
+        </div>
+        <div id="rename-remove-suffix-options" style="display:none;">
+            <div class="flex-row">
+                <span>{{ _('Remove suffix in brackets (e.g. [xxx])') }}</span>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn" onclick="doBatchRename()">{{ _('Execute') }}</button>
+            <button class="btn-secondary" onclick="closeBatchRenameModal()">{{ _('Cancel') }}</button>
+            <span id="rename-status"></span>
+        </div>
+        <div id="rename-progress" style="margin-top:10px; color:#a6e3a1; font-size:0.9em; display:none;"></div>
+    </div>
+</div>
 
 <script>
 
 var lang = {
+    renaming: {{ _('Renaming...')|tojson }},
+    batch_rename: {{ _('Batch Rename')|tojson }},
     preview: {{ _('Preview:')|tojson }},
     import_completed: {{ _('Import completed!\nSuccess: {success}, Failed: {failed}, Skipped: {skipped}')|tojson }},
     select_folder_prompt: {{ _('Please select a source folder containing game files.')|tojson }},
@@ -539,6 +626,7 @@ function updateMissingToggleState() {
     var btnUpload = document.querySelector('.extra-btn[data-action="upload"]');
     var btnBatch = document.querySelector('.extra-btn[data-action="batch"]');
     var btnImport = document.querySelector('.extra-btn[data-action="import"]');
+    var btnRename = document.querySelector('.extra-btn[data-action="rename"]');
     if (!currentPath) {
         btn.disabled = true;
         btn.title = lang.no_game_dir;
@@ -554,15 +642,21 @@ function updateMissingToggleState() {
             btnImport.disabled = true;
             btnImport.title = lang.no_game_dir;
         }
+        if (btnRename) {
+            btnRename.disabled = true;
+            btnRename.title = lang.no_game_dir;
+        }
     } else {
         btn.disabled = false;
         btnUpload.disabled = false;
         btnBatch.disabled = false;
         btnImport.disabled = false;
+        btnRename.disabled = false;
         btn.title = '';
         if (btnUpload) btnUpload.title = '';
         if (btnBatch) btnBatch.title = '';
         if (btnImport) btnImport.title = '';
+        if (btnRename) btnRename.title = '';
     }
 }
 
@@ -1929,6 +2023,107 @@ function shutdownServer() {
     }
 }
 
+function showBatchRenameModal() {
+    if (!currentPath || currentPath === '') {
+        alert(lang.no_game_dir);
+        return;
+    }
+    document.getElementById('batch-rename-modal').style.display = 'flex';
+    document.getElementById('rename-status').textContent = '';
+    document.getElementById('rename-progress').style.display = 'none';
+    toggleRenameOptions();
+}
+
+function closeBatchRenameModal() {
+    document.getElementById('batch-rename-modal').style.display = 'none';
+    document.getElementById('rename-status').textContent = '';
+    document.getElementById('rename-progress').style.display = 'none';
+}
+
+function toggleRenameOptions() {
+    var op = document.getElementById('rename-operation').value;
+    document.getElementById('rename-prefix-options').style.display = (op === 'add_prefix') ? 'block' : 'none';
+    document.getElementById('rename-suffix-options').style.display = (op === 'add_suffix') ? 'block' : 'none';
+    document.getElementById('rename-remove-prefix-options').style.display = (op === 'remove_prefix') ? 'block' : 'none';
+    document.getElementById('rename-remove-suffix-options').style.display = (op === 'remove_suffix') ? 'block' : 'none';
+}
+
+document.getElementById('rename-operation').addEventListener('change', toggleRenameOptions);
+
+function doBatchRename() {
+    var op = document.getElementById('rename-operation').value;
+    var data = {
+        path: currentPath,
+        operation: op
+    };
+
+    if (op === 'add_prefix') {
+        data.prefix_type = document.getElementById('rename-prefix-type').value;
+        data.digits = parseInt(document.getElementById('rename-digits').value) || 2;
+        data.start = parseInt(document.getElementById('rename-start').value) || 0;
+        data.separator = document.getElementById('rename-separator').value;
+        if (data.digits < 1 || data.start < 0) {
+            alert(lang.please_enter_valid_number || 'Please enter a valid number');
+            return;
+        }
+    } else if (op === 'add_suffix') {
+        data.bracket_type = document.getElementById('rename-bracket').value;
+        data.separator = document.getElementById('rename-suffix-separator').checked ? ' ' : '';
+    } else if (op === 'remove_prefix') {
+        data.n = parseInt(document.getElementById('rename-remove-n').value) || 1;
+        if (data.n < 1) {
+            alert(lang.please_enter_valid_number || 'Please enter a valid number');
+            return;
+        }
+    } else if (op === 'remove_suffix') {
+    } else {
+        alert(lang.invalid_operation || 'Invalid operation');
+        return;
+    }
+
+    var progress = document.getElementById('rename-progress');
+    progress.style.display = 'block';
+    progress.textContent = lang.renaming || 'Renaming...';
+    var status = document.getElementById('rename-status');
+    status.textContent = '';
+
+    var overlay = document.getElementById('global-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('global-overlay-text').textContent = '⏳ ' + (lang.renaming || 'Renaming...');
+
+    fetch('/api/batch_rename', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        overlay.style.display = 'none';
+        progress.style.display = 'none';
+        if (result.success !== undefined) {
+            var msg = result.message || lang.rename_completed.replace('{success}', result.success).replace('{failed}', result.failed).replace('{skipped}', result.skipped);
+            if (result.failed > 0 && result.details && result.details.length > 0) {
+                var details = result.details.slice(0, 5).map(d => d.file + ' (' + d.reason + ')').join('\n');
+                if (result.details.length > 5) {
+                    details += '\n... and ' + (result.details.length - 5) + ' more (see console)';
+                }
+                msg += '\n\nFailed details:\n' + details;
+                console.log('Full failed list:', result.details);
+            }
+            alert(msg);
+            closeBatchRenameModal();
+            refreshCurrentDir();
+        } else {
+            alert((lang.rename_failed || 'Rename failed: {error}').replace('{error}', result.error || lang.unknown_error));
+        }
+    })
+    .catch(err => {
+        overlay.style.display = 'none';
+        alert(lang.network_error || 'Network error');
+        progress.style.display = 'none';
+    });
+}
+
 function addExtraAction(name, callback, cssClass = '', action = '') {
     if (extraActions[name]) return;
     var container = document.getElementById('extra-actions-buttons');
@@ -1943,9 +2138,10 @@ function addExtraAction(name, callback, cssClass = '', action = '') {
     extraActions[name] = btn;
 }
 
-addExtraAction(lang.batch_scrape, function(e) { batchScrape(e.target); }, 'primary', 'batch');
 addExtraAction(lang.upload_game, showUpload, 'primary', 'upload');
 addExtraAction(lang.batch_import_games || 'Batch Import Games', function(e) { showImportModal(); }, 'primary', 'import');
+addExtraAction(lang.batch_scrape, function(e) { batchScrape(e.target); }, 'primary', 'batch');
+addExtraAction(lang.batch_rename || 'Batch Rename', function(e) { showBatchRenameModal(); }, 'primary', 'rename');
 addExtraAction(lang.backup_save, backupSave, 'primary', 'backup');
 addExtraAction(lang.restore_save, restoreSave, 'primary', 'restore');
 addExtraAction(lang.about || 'About', function() {alert(lang.about_info.replace('{version}', version));}, 'primary');

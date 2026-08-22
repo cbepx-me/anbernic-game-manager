@@ -10,12 +10,14 @@ deps_path = os.path.join(base_path, "deps")
 if os.path.isdir(deps_path):
     sys.path.insert(0, deps_path)
 
+import shutil
+
 import app
 import input
 from graphic import UserInterface
 from app import (
     get_files_in_dir, get_subdirs, delete_game,
-    scrape_preview_for_path, system_lang
+    scrape_preview_for_path, system_lang, get_rom_root
 )
 
 from language import Translator
@@ -34,6 +36,7 @@ class LocalUI:
         self.running = True
         self.mode = "browse"
         app.current_sd = self.an.get_sd_storage()
+        self.storage_info = {"total": 0, "used": 0, "free": 0}
 
         self.menu_options = []
         self.menu_index = 0
@@ -156,7 +159,7 @@ class LocalUI:
                 self.scroll_offset = self.selected_index
             elif self.selected_index >= self.scroll_offset + self.max_display:
                 self.scroll_offset = self.selected_index - self.max_display + 1
-        elif self.mode == "menu":
+        elif self.mode == "menu" or self.mode == "rename_preset":
             if not self.menu_options:
                 return
             if self.menu_index > 0:
@@ -176,7 +179,7 @@ class LocalUI:
                 self.scroll_offset = self.selected_index
             elif self.selected_index >= self.scroll_offset + self.max_display:
                 self.scroll_offset = self.selected_index - self.max_display + 1
-        elif self.mode == "menu":
+        elif self.mode == "menu" or self.mode == "rename_preset":
             if not self.menu_options:
                 return
             if self.menu_index < len(self.menu_options) - 1:
@@ -219,6 +222,8 @@ class LocalUI:
             self.show_action_menu()
         elif self.mode == "menu":
             self.execute_menu_action()
+        elif self.mode == "rename_preset":
+            self.execute_rename_preset()
 
     def handle_b(self):
         if self.mode == "menu":
@@ -227,6 +232,8 @@ class LocalUI:
                 self.mode = "browse"
             else:
                 self.mode = "detail"
+        elif self.mode == "rename_preset":
+            self.mode = "browse"
         elif self.mode == "detail":
             self.mode = "browse"
             self.current_file = None
@@ -251,8 +258,9 @@ class LocalUI:
             return
         self.menu_options = [
             (self.lang.translate("Scrape preview"), "scrape"),
-            (self.lang.translate("Delete game"), "delete"),
             (self.lang.translate("Delete preview"), "delete_preview"),
+            (self.lang.translate("Delete guide"), "delete_guide"),
+            (self.lang.translate("Delete game"), "delete"),
             (self.lang.translate("Back"), "back")
         ]
         self.menu_index = 0
@@ -261,6 +269,7 @@ class LocalUI:
     def show_global_menu(self):
         self.menu_options = [
             (self.lang.translate("Batch scrape"), "batch_scrape"),
+            (self.lang.translate("Batch rename"), "batch_rename"),
             (self.lang.translate("Go to root"), "root"),
             (self.lang.translate("Refresh"), "refresh"),
             (self.lang.translate("Exit"), "exit")
@@ -279,8 +288,12 @@ class LocalUI:
             self.do_delete()
         elif action == "delete_preview":
             self.do_delete_preview()
+        elif action == "delete_guide":
+            self.do_delete_guide()
         elif action == "batch_scrape":
             self.do_batch_scrape()
+        elif action == "batch_rename":
+            self.do_batch_rename()
         elif action == "root":
             self.load_root()
             self.mode = "browse"
@@ -394,6 +407,32 @@ class LocalUI:
         else:
             self.mode = "browse"
 
+    def do_delete_guide(self):
+        if not self.current_file:
+            return
+        file_path = os.path.join(app.get_rom_root(), self.current_file['path'])
+        guide_path = app.get_guide_path(file_path)
+        if not guide_path or not os.path.exists(guide_path):
+            self.show_message(self.lang.translate("No guide file to delete"))
+            self.mode = "detail"
+            return
+        if self.show_confirm(self.lang.translate('Delete guide for "{name}"?').format(name=self.current_file['name'])):
+            try:
+                os.remove(guide_path)
+                self.show_message(self.lang.translate("Guide deleted successfully"))
+                self.current_file['guide_exists'] = False
+                file_path = self.current_file['path']
+                self.load_directory(self.current_path)
+                if self._find_and_select_file(file_path):
+                    self.current_file = self.current_items[self.selected_index]
+                else:
+                    self.current_file = None
+                    self.mode = "browse"
+                    return
+            except Exception as e:
+                self.show_message(self.lang.translate("Error: {error}").format(error=str(e)))
+        self.mode = "detail" if self.current_file else "browse"
+
     def do_batch_scrape(self):
         if not self.current_path:
             self.show_message(self.lang.translate("Please enter a game directory first"))
@@ -455,6 +494,130 @@ class LocalUI:
                 return True
         return False
 
+    def do_batch_rename(self):
+        self.menu_options = [
+            (f'{self.lang.translate("Add Number prefix")} (001~)', {"operation": "add_prefix", "prefix_type": "numbers"}),
+            (f'{self.lang.translate("Add Pinyin prefix")} (PY)', {"operation": "add_prefix", "prefix_type": "pinyin"}),
+            (f'{self.lang.translate("Add Pinyin suffix")} [...](...)', {"operation": "add_suffix"}),
+            (f'{self.lang.translate("Remove prefix")} (n {self.lang.translate("chars")})', {"operation": "remove_prefix"}),
+            (f'{self.lang.translate("Remove suffix brackets")} [...](...)', {"operation": "remove_suffix"}),
+            (self.lang.translate("Cancel"), None)
+        ]
+        self.menu_index = 0
+        self.mode = "rename_preset"
+
+    def execute_rename_preset(self):
+        if self.menu_index >= len(self.menu_options):
+            return
+        label, params = self.menu_options[self.menu_index]
+        if params is None:
+            self.mode = "browse"
+            return
+
+        from app import is_arcade
+        if is_arcade(self.current_path.split('/')[0]):
+            self.show_message(self.lang.translate("Cannot rename arcade games"))
+            self.mode = "browse"
+            return
+
+        if not self.show_confirm(self.lang.translate("Apply '{label}' to all files in current directory?").format(label=label)):
+            self.mode = "browse"
+            return
+        
+        self.mode = "browse"
+        self.render_scraping(self.lang.translate("Renaming..."))
+
+        try:
+            from app import batch_rename_files
+            result = batch_rename_files(self.current_path, **params)
+
+            if 'error' in result:
+                self.show_message(self.lang.translate("Error: {error}").format(error=result['error']))
+            else:
+                msg = self.lang.translate(
+                    "Rename completed! Success: {success}, Failed: {failed}, Skipped: {skipped}"
+                ).format(
+                    success=result.get('success', 0),
+                    failed=result.get('failed', 0),
+                    skipped=result.get('skipped', 0)
+                )
+                if result.get('failed', 0) > 0 and result.get('details'):
+                    details = "\n".join([f"{d['file']}: {d['reason']}" for d in result['details'][:5]])
+                    msg += "\n\n" + details
+                self.show_message(msg)
+                self.load_directory(self.current_path)
+        except Exception as e:
+            self.show_message(self.lang.translate("Error: {error}").format(error=str(e)))
+
+        self.mode = "browse"
+
+    def get_digits(self, title, info, digits=0, max_digits=5, min_digits=1):
+        while True:
+            ui = self.ui
+            ui.draw_clear()
+            ui.draw_rectangle_r([50, 100, self.screen_width - 50, self.screen_height - 100],
+                                radius=12, fill='#1a1a2e', outline=self.colors['border'])
+            ui.draw_text((self.screen_width // 2, 160), self.lang.translate(title),
+                        font=25, color=self.colors['text'], anchor="mm")
+            digits_text = f"{self.lang.translate(info)}: {digits}"
+
+            y_digits = self.screen_height // 2
+
+            ui.draw_rectangle_r([self.screen_width//2 - 100, y_digits-20, self.screen_width//2 + 100, y_digits+20],
+                                    radius=5, fill=self.colors['item_selected'])
+            ui.draw_text((self.screen_width // 2, y_digits), digits_text, font=22, color=self.colors['text'], anchor="mm")
+            hint = self.lang.translate("Up/Down: adjust value, A: confirm, B: cancel")
+            ui.draw_text((self.screen_width // 2, self.screen_height - 60), hint,
+                        font=18, color=self.colors['text_dim'], anchor="mm")
+            ui.draw_paint()
+
+            input.check()
+            if input.key("DY"):
+                if input.value < 0:
+                    digits = max(min_digits, digits - 1)
+                else:
+                    digits = min(max_digits, digits + 1)
+            elif input.key("A"):
+                return digits
+            elif input.key("B"):
+                return -1
+            input.reset_input()
+            time.sleep(0.05)
+
+    def get_char(self, title, info, chars=["None"," ","-","_",".","[]","()"]):
+        i = 0
+        while True:
+            ui = self.ui
+            ui.draw_clear()
+            ui.draw_rectangle_r([50, 100, self.screen_width - 50, self.screen_height - 100],
+                                radius=12, fill='#1a1a2e', outline=self.colors['border'])
+            ui.draw_text((self.screen_width // 2, 160), self.lang.translate(title),
+                        font=25, color=self.colors['text'], anchor="mm")
+            digits_text = f"{self.lang.translate(info)}: '{chars[i]}'"
+
+            y_digits = self.screen_height // 2
+
+            ui.draw_rectangle_r([self.screen_width//2 - 100, y_digits-20, self.screen_width//2 + 100, y_digits+20],
+                                    radius=5, fill=self.colors['item_selected'])
+            ui.draw_text((self.screen_width // 2, y_digits), digits_text, font=22, color=self.colors['text'], anchor="mm")
+            hint = self.lang.translate("Up/Down: adjust value, A: confirm, B: cancel")
+            ui.draw_text((self.screen_width // 2, self.screen_height - 60), hint,
+                        font=18, color=self.colors['text_dim'], anchor="mm")
+            ui.draw_paint()
+
+            input.check()
+            if input.key("DY"):
+                if input.value < 0:
+                    i = max(0, i - 1)
+                else:
+                    i = min(len(chars) - 1, i + 1)
+            elif input.key("A"):
+                return chars[i]
+            elif input.key("B"):
+                return None
+            input.reset_input()
+            time.sleep(0.05)
+
     def show_loading_screen(self):
         ui = self.ui
         text = self.lang.translate("Loading...")
@@ -487,7 +650,7 @@ class LocalUI:
             self.render_browse()
         elif self.mode == "detail":
             self.render_detail()
-        elif self.mode == "menu":
+        elif self.mode == "menu" or self.mode == "rename_preset":
             self.render_menu()
         elif self.mode == "scraping":
             pass
@@ -500,6 +663,15 @@ class LocalUI:
         ui = self.ui
         ui.draw_clear()
 
+        rom_root = get_rom_root()
+        try:
+            total, used, free = shutil.disk_usage(rom_root)
+            total_gb = total / (1024**3)
+            used_gb = used / (1024**3)
+            free_gb = free / (1024**3)
+            storage_text = f"{self.lang.translate('Storage')}: {total_gb:.1f}GB {self.lang.translate('Used')}: {used_gb:.1f}GB {self.lang.translate('Free')}: {free_gb:.1f}GB"
+        except:
+            storage_text = self.lang.translate("Storage information unavailable")
 
         title = f"SD:{self.an.get_sd_storage()}"
         ui.draw_rectangle_r([0, 0, self.screen_width, 55], radius=0, fill=self.colors['bg_list'])
@@ -507,6 +679,8 @@ class LocalUI:
 
         path_info = f"{self.lang.translate('Path')}: /Roms{'/' + self.current_path if self.current_path else ''}"
         ui.draw_text((10, 35), path_info, font=16, color=self.colors['text_secondary'])
+
+        ui.draw_text((self.screen_width - 10, 45), storage_text, font=16, color=self.colors['text_secondary'], anchor="rm")
 
         games_count = sum(1 for item in self.current_items if not item.get('is_dir', True))
         no_preview_count = sum(1 for item in self.current_items if not item.get('is_dir', True) and not item.get('preview'))
@@ -667,13 +841,16 @@ class LocalUI:
             ui.draw_text((self.screen_width // 2, self.screen_height - 24), hint,
                          font=18, color=self.colors['text_dim'], anchor="mm")
 
-        ui.draw_rectangle_r([50, 100, self.screen_width - 50, self.screen_height - 100],
+        ui.draw_rectangle_r([50, 50, self.screen_width - 50, self.screen_height - 50],
                             radius=12, fill='#1a1a2e', outline=self.colors['border'])
-        ui.draw_text((self.screen_width // 2, 125), self.lang.translate("Operation menu"),
-                     font=25, color=self.colors['text'], anchor="mm")
+        if self.mode == "rename_preset":
+            title = self.lang.translate("Choose rename operation")
+        else:
+            title = self.lang.translate("Operation menu")
+        ui.draw_text((self.screen_width // 2, 75), title, font=25, color=self.colors['text'], anchor="mm")
 
         for i, (label, action) in enumerate(self.menu_options):
-            y = 150 + i * 32
+            y = 100 + i * 32
             is_selected = (i == self.menu_index)
             color = self.colors['item_selected'] if is_selected else self.colors['item_normal']
             ui.draw_rectangle_r([70, y, self.screen_width - 70, y + 26], radius=4, fill=color)
@@ -732,7 +909,6 @@ class LocalUI:
         if current:
             lines.append(' '.join(current))
         return lines
-
 
 def main():
     print("\n" + "="*50)
