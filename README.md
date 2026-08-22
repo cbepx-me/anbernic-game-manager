@@ -114,20 +114,18 @@ Examples: GBA, NES, SNES, N64, PS1, PSP, MAME, FBNeo, Dreamcast, and many more.
 
 ## 🖼️ Screenshots
 <div align="center">
-<img width="720" height="480" alt="screenshot_20260820_091019" src="https://github.com/user-attachments/assets/ab37ee38-e52b-45a2-a2ec-e1a00ee1cf34" />
+<img width="640" height="480" alt="screenshot_20260822_181245" src="https://github.com/user-attachments/assets/cc786c9b-8432-4565-b339-eeb7eb9a6a0e" />
 
-<img width="720" height="480" alt="screenshot_20260819_233257" src="https://github.com/user-attachments/assets/00bc5807-3a28-4b7d-b867-e0ba07aa5427" />
-
+<img width="640" height="480" alt="screenshot_20260822_181254" src="https://github.com/user-attachments/assets/6e9cc2cd-6c75-40a4-a096-c9b2f7b3e44d" />
 ---
 
 ### Web UI
 
-<img width="1860" height="1225" alt="屏幕截图 2026-08-19 233459" src="https://github.com/user-attachments/assets/308ee0d5-4f1b-4236-bab9-e5a1d0679848" />
+<img width="1860" height="1227" alt="屏幕截图 2026-08-22 175448" src="https://github.com/user-attachments/assets/7c08aee6-0639-42ca-a09e-995146e0edc8" />
 
 Main dashboard – browse games, view previews, and manage files.
 
-<img width="400" height="882" alt="1f67a19399b17dadb4ffd65c63995807" src="https://github.com/user-attachments/assets/4d09b7b1-162a-4098-bb2e-8f2abb118ea7" />
-
+<img width="400" height="1069" alt="bcde2f0066806f17b35c458bd99e8825" src="https://github.com/user-attachments/assets/053ea64b-397a-4471-98e9-3506e1d3a869" />
 
 Mobile main interface – browse games, view details, and manage files on the go.
 
@@ -135,13 +133,20 @@ Mobile main interface – browse games, view details, and manage files on the go
 
 ### Local UI
 
-<img width="720" height="480" alt="screenshot_20260819_233349" src="https://github.com/user-attachments/assets/461ea82d-ecef-4ffd-b661-0de11f0917ac" />
+<img width="640" height="480" alt="screenshot_20260822_181332" src="https://github.com/user-attachments/assets/01c4be41-a61b-4cda-8ba7-504005e08509" />
 
 Main dashboard – browse games, view previews, and manage files.
 
-<img width="720" height="480" alt="screenshot_20260819_233358" src="https://github.com/user-attachments/assets/7b82ac94-9cf0-4e8d-a23f-2395117762da" />
+<img width="640" height="480" alt="screenshot_20260822_181339" src="https://github.com/user-attachments/assets/846d23b4-4a94-44d6-b71e-a57ee1902ec9" />
 
 Game details interface.
+
+<img width="640" height="480" alt="screenshot_20260822_181352" src="https://github.com/user-attachments/assets/2aa408e3-2842-43a4-8481-bbfd14710fde" />
+
+<img width="640" height="480" alt="screenshot_20260822_181345" src="https://github.com/user-attachments/assets/56cfd9b0-498d-4f73-a0a6-3dca025c241e" />
+
+Function Menu.
+
 </div>
 ---
 
