@@ -1,26 +1,27 @@
 # Anbernic Game Manager
 
+🎮 A self‑hosted game management suite for Anbernic handheld consoles (RG35XX+, RG40XX, RG CubeXX, etc.)  
+Provides both a **web interface** (accessible from any browser) and a **native on‑device UI** for managing ROMs, previews, guides, and save data – all without removing the SD card.
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://python.org)
 [![Flask](https://img.shields.io/badge/flask-2.2-lightgrey)](https://flask.palletsprojects.com)
-
-A lightweight, web-based management tool for Anbernic handheld gaming consoles.  
-Easily manage your ROMs, scrape box art, backup/restore save data, upload game guides, and more – all from your browser.
-
-> **Designed for Anbernic devices** (RG35XX, RG40XX, RG CubeXX, etc.) running the stock firmware with Python 3.8+.
 
 ---
 
 ## ✨ Features
 
-- **📁 ROM Management** – Browse, upload, and delete games (supports many systems: GBA, PS1, PSP, MAME, etc.)
-- **🖼️ Cover Art Scraping** – Fetch screenshots individually or in batch from ScreenScraper (supports multi‑language game names)
-- **✏️ Rename Games** – Rename ROM files and their associated preview images
-- **📄 Game Guides** – Upload `.txt` guide files for any game
-- **💾 Save Data Backup & Restore** – One‑click backup of all save data (PPSSPP, PCSX, RetroArch, Drastic, etc.) as a `.tar.gz` archive, with verification on restore
-- **🔁 Dual SD Card Support** – Switch between SD1 and SD2, view storage usage in real time
-- **🌍 Multi‑language** – UI supports Chinese, English, Japanese, Korean, and more (system language auto‑detected)
-- **📱 Mobile Friendly** – Responsive design works on phones and tablets
+- **Browse ROMs** – organised by console, supports both SD1 and SD2 storage.
+- **Upload / Delete** – add games, preview images (PNG/JPG), and guide text files.
+- **Automatic Scraping** – fetch screenshots from [ScreenScraper.fr](https://www.screenscraper.fr) (requires free account).
+- **Batch Operations** – scrape missing previews, rename files in bulk (prefix/suffix, remove brackets, etc.).
+- **Metadata Import** – import games and previews from `gamelist.xml` or `metadata.pegasus.txt`.
+- **Save Backup / Restore** – backup all emulator save states and memory cards to a `.tar.gz` archive.
+- **Preview & Guide** – display cover art and read guide files alongside the game details.
+- **Web Interface** – fully responsive, works on mobile, tablet, and desktop.
+- **Native UI** – SDL2‑based on‑device interface with gamepad controls.
+- **Multi‑language** – supports English, Chinese, Japanese, Korean, and more.
+- **Safe Shutdown** – stop the server gracefully from the web UI.
 
 ---
 
