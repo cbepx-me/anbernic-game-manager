@@ -62,6 +62,12 @@ class LocalUI:
             'danger': '#f38ba8',
             'warning': '#ffd700'
         }
+        # 预加载 arcade CSV，避免首次进目录卡住
+        try:
+            from name_converter import name_converter
+            name_converter.load_arcade_mapping()
+        except Exception as e:
+            print(f"[WARN] Preload arcade mapping failed: {e}")
 
     def main_loop(self):
         self.load_root()
@@ -86,7 +92,7 @@ class LocalUI:
                 self.an.switch_sd_storage()
                 app.current_sd = self.an.get_sd_storage()
                 self.load_root()
-            elif input.key("MENUF"):
+            elif input.key("SELECT"):
                 self.ui.draw_clear()
                 self.ui.draw_text((self.screen_width // 2, self.screen_height // 2), self.lang.translate("Exiting..."), font=27, color=self.colors['text'], anchor="mm")
                 self.ui.draw_paint()
@@ -124,7 +130,7 @@ class LocalUI:
         self.show_loading_screen()
         app.current_sd = self.an.get_sd_storage()
         self.current_path = path
-        self.current_items = get_files_in_dir(path, lang=self.lang.lang_code)
+        self.current_items = get_files_in_dir(path, lang=self.lang.lang_code, need_pinyin=False)
         if keep_index:
             if self.selected_index >= len(self.current_items):
                 self.selected_index = 0
@@ -166,6 +172,21 @@ class LocalUI:
                 self.menu_index -= 1
             else:
                 self.menu_index = len(self.menu_options) - 1
+        elif self.mode == "detail":
+            if not self.current_items:
+                return
+            idx = self.selected_index - 1
+            while idx >= 0:
+                item = self.current_items[idx]
+                if not item.get('is_dir', False):
+                    self.selected_index = idx
+                    self.current_file = item
+                    if self.selected_index < self.scroll_offset:
+                        self.scroll_offset = self.selected_index
+                    elif self.selected_index >= self.scroll_offset + self.max_display:
+                        self.scroll_offset = self.selected_index - self.max_display + 1
+                    return
+                idx -= 1
 
     def handle_down(self):
         if self.mode == "browse":
@@ -186,6 +207,21 @@ class LocalUI:
                 self.menu_index += 1
             else:
                 self.menu_index = 0
+        elif self.mode == "detail":
+            if not self.current_items:
+                return
+            idx = self.selected_index + 1
+            while idx < len(self.current_items):
+                item = self.current_items[idx]
+                if not item.get('is_dir', False):
+                    self.selected_index = idx
+                    self.current_file = item
+                    if self.selected_index < self.scroll_offset:
+                        self.scroll_offset = self.selected_index
+                    elif self.selected_index >= self.scroll_offset + self.max_display:
+                        self.scroll_offset = self.selected_index - self.max_display + 1
+                    return
+                idx += 1
 
     def handle_r1(self):
         if self.mode == "browse":
@@ -194,6 +230,24 @@ class LocalUI:
                 self.scroll_offset = self.selected_index - self.max_display + 1
         elif self.mode == "menu":
             self.menu_index = min(self.menu_index + 3, len(self.menu_options) - 1)
+        elif self.mode == "detail":
+            if not self.current_items:
+                return
+            game_indices = [i for i, item in enumerate(self.current_items) if not item.get('is_dir', False)]
+            if not game_indices:
+                return
+            try:
+                cur_idx = game_indices.index(self.selected_index)
+            except ValueError:
+                cur_idx = 0
+            new_cur_idx = min(cur_idx + 10, len(game_indices) - 1)
+            new_sel_idx = game_indices[new_cur_idx]
+            self.selected_index = new_sel_idx
+            self.current_file = self.current_items[new_sel_idx]
+            if self.selected_index < self.scroll_offset:
+                self.scroll_offset = self.selected_index
+            elif self.selected_index >= self.scroll_offset + self.max_display:
+                self.scroll_offset = self.selected_index - self.max_display + 1
 
     def handle_l1(self):
         if self.mode == "browse":
@@ -202,6 +256,24 @@ class LocalUI:
                 self.scroll_offset = self.selected_index
         elif self.mode == "menu":
             self.menu_index = max(self.menu_index - 3, 0)
+        elif self.mode == "detail":
+            if not self.current_items:
+                return
+            game_indices = [i for i, item in enumerate(self.current_items) if not item.get('is_dir', False)]
+            if not game_indices:
+                return
+            try:
+                cur_idx = game_indices.index(self.selected_index)
+            except ValueError:
+                cur_idx = 0
+            new_cur_idx = max(cur_idx - 10, 0)
+            new_sel_idx = game_indices[new_cur_idx]
+            self.selected_index = new_sel_idx
+            self.current_file = self.current_items[new_sel_idx]
+            if self.selected_index < self.scroll_offset:
+                self.scroll_offset = self.selected_index
+            elif self.selected_index >= self.scroll_offset + self.max_display:
+                self.scroll_offset = self.selected_index - self.max_display + 1
 
     def handle_a(self):
         if self.mode == "browse":
@@ -209,17 +281,17 @@ class LocalUI:
             if not item:
                 return
             if item.get('is_dir', False):
-                    if self.current_path == "":
-                        self.dir_memory["root"] = self.selected_index
-                    else:
-                        self.dir_memory["sub"][self.current_path] = self.selected_index
-                    self.load_directory(item['path'])
+                if self.current_path == "":
+                    self.dir_memory["root"] = self.selected_index
+                else:
+                    self.dir_memory["sub"][self.current_path] = self.selected_index
+                self.load_directory(item['path'])
             else:
                 self.current_file = item
                 self.mode = "detail"
                 self.menu_index = 0
         elif self.mode == "detail":
-            self.show_action_menu()
+            self.run_current_game()
         elif self.mode == "menu":
             self.execute_menu_action()
         elif self.mode == "rename_preset":
@@ -252,6 +324,8 @@ class LocalUI:
     def handle_start(self):
         if self.mode == "browse":
             self.show_global_menu()
+        elif self.mode == "detail":
+            self.show_action_menu()
 
     def show_action_menu(self):
         if not self.current_file:
@@ -343,7 +417,7 @@ class LocalUI:
         try:
             success, result = scrape_preview_for_path(file_info['path'])
             if success:
-                self.current_file['preview'] = os.path.join(self.current_path, result)
+                self.current_file['preview'] = os.path.join(get_rom_root(), result)
                 return True
             else:
                 print(f"Scrape failed: {result}")
@@ -387,7 +461,10 @@ class LocalUI:
                     os.remove(preview_path)
                     self.show_message(self.lang.translate("Preview image deleted"))
                     file_path = self.current_file['path']
-                    self.load_directory(self.current_path)
+                    if self.current_path:
+                        self.load_directory(self.current_path)
+                    else:
+                        self.load_root()
                     if self._find_and_select_file(file_path):
                         self.current_file = self.current_items[self.selected_index]
                     else:
@@ -411,18 +488,22 @@ class LocalUI:
         if not self.current_file:
             return
         file_path = os.path.join(app.get_rom_root(), self.current_file['path'])
-        guide_path = app.get_guide_path(file_path)
-        if not guide_path or not os.path.exists(guide_path):
+        guides = app.get_all_guide_paths(file_path)
+        if not guides:
             self.show_message(self.lang.translate("No guide file to delete"))
             self.mode = "detail"
             return
         if self.show_confirm(self.lang.translate('Delete guide for "{name}"?').format(name=self.current_file['name'])):
             try:
-                os.remove(guide_path)
+                for g in guides:
+                    os.remove(g)
                 self.show_message(self.lang.translate("Guide deleted successfully"))
                 self.current_file['guide_exists'] = False
                 file_path = self.current_file['path']
-                self.load_directory(self.current_path)
+                if self.current_path:
+                    self.load_directory(self.current_path)
+                else:
+                    self.load_root()
                 if self._find_and_select_file(file_path):
                     self.current_file = self.current_items[self.selected_index]
                 else:
@@ -442,7 +523,7 @@ class LocalUI:
         self.render_scraping(self.lang.translate("Batch scraping..."))
 
         try:
-            items = get_files_in_dir(self.current_path, lang=self.lang.lang_code)
+            items = get_files_in_dir(self.current_path, lang=self.lang.lang_code, need_pinyin=False)
             to_scrape = [f for f in items if not f.get('is_dir', True) and not f.get('preview')]
 
             if not to_scrape:
@@ -523,14 +604,62 @@ class LocalUI:
         if not self.show_confirm(self.lang.translate("Apply '{label}' to all files in current directory?").format(label=label)):
             self.mode = "browse"
             return
-        
+
+        # ========== 在主 UI 中采集参数（避免重复创建 LocalUI） ==========
+        operation = params.get('operation')
+        actual_params = {}
+
+        if operation == 'add_prefix':
+            prefix_type = params.get('prefix_type', 'numbers')
+            actual_params['prefix_type'] = prefix_type
+            if prefix_type == 'numbers':
+                digits = self.get_digits("Set digit count", "Digits", 3)
+                if digits == -1:
+                    self.mode = "browse"
+                    return
+                actual_params['digits'] = digits
+
+                start = self.get_digits("Set start number", "Start from", 1, 5, 0)
+                if start == -1:
+                    self.mode = "browse"
+                    return
+                actual_params['start'] = start
+            separator = self.get_char("Set separator", "Separator", [" ", "-", "_", ""])
+            if separator is None:
+                self.mode = "browse"
+                return
+            actual_params['separator'] = separator
+
+        elif operation == 'add_suffix':
+            bracket_type = self.get_char("Set suffix brackets", "Brackets", ["[...]", "(...)"])
+            if bracket_type is None:
+                self.mode = "browse"
+                return
+            actual_params['bracket_type'] = bracket_type
+
+            separator = self.get_char("Set separator", "Separator", ["", " ", "-", "_"])
+            if separator is None:
+                self.mode = "browse"
+                return
+            actual_params['separator'] = separator
+
+        elif operation == 'remove_prefix':
+            n = self.get_digits("Set number of characters to delete", "Digits", 1, 9)
+            if n == -1:
+                self.mode = "browse"
+                return
+            actual_params['n'] = n
+
+        elif operation == 'remove_suffix':
+            pass  # 无需额外参数
+
+        # ========== 执行重命名 ==========
         self.mode = "browse"
         self.render_scraping(self.lang.translate("Renaming..."))
 
         try:
             from app import batch_rename_files
-            result = batch_rename_files(self.current_path, **params)
-
+            result = batch_rename_files(self.current_path, operation, **actual_params)
             if 'error' in result:
                 self.show_message(self.lang.translate("Error: {error}").format(error=result['error']))
             else:
@@ -574,9 +703,9 @@ class LocalUI:
             input.check()
             if input.key("DY"):
                 if input.value < 0:
-                    digits = max(min_digits, digits - 1)
-                else:
                     digits = min(max_digits, digits + 1)
+                else:
+                    digits = max(min_digits, digits - 1)
             elif input.key("A"):
                 return digits
             elif input.key("B"):
@@ -608,9 +737,9 @@ class LocalUI:
             input.check()
             if input.key("DY"):
                 if input.value < 0:
-                    i = max(0, i - 1)
-                else:
                     i = min(len(chars) - 1, i + 1)
+                else:
+                    i = max(0, i - 1)
             elif input.key("A"):
                 return chars[i]
             elif input.key("B"):
@@ -618,10 +747,19 @@ class LocalUI:
             input.reset_input()
             time.sleep(0.05)
 
+    def run_current_game(self):
+        if not self.current_file:
+            return
+        file_path = self.current_file['path']
+        try:
+            return
+        except Exception as e:
+            self.show_message(self.lang.translate("Failed to run game: {error}").format(error=str(e)))
+
     def show_loading_screen(self):
         ui = self.ui
         text = self.lang.translate("Loading...")
-        ui.draw_rectangle_r([self.screen_width // 2 - 200, self.screen_height //2 - 50, self.screen_width // 2 + 200, self.screen_height // 2 + 50], radius=10, fill=self.colors['bg_list'])
+        ui.draw_rectangle_r([5, self.screen_height //2 - 50, self.screen_width - 5, self.screen_height // 2 + 50], radius=10, fill=self.colors['bg_list'])
         ui.draw_text((self.screen_width // 2, self.screen_height // 2), text, font=20, color=self.colors['text'], anchor="mm")
         ui.draw_paint()
 
@@ -725,7 +863,7 @@ class LocalUI:
                 ui.draw_text((self.screen_width - 15, y + 15), info, font=19,
                              color=self.colors['text_secondary'], anchor="rm")
 
-        hint = self.lang.translate("Navigation: Up/Down, LR page, A confirm, B back, Y switch SD, Start menu, M exit")
+        hint = self.lang.translate("Navigation: Up/Down, LR page, A confirm, B back, Y switch SD, Start menu, SEL exit")
         ui.draw_text((self.screen_width // 2, self.screen_height - 20), hint,
                      font=16, color=self.colors['text_dim'], anchor="mm")
         ui.draw_paint()
@@ -739,8 +877,18 @@ class LocalUI:
         file = self.current_file
 
         ui.draw_rectangle_r([0, 0, self.screen_width, 35], radius=0, fill=self.colors['bg_list'])
-        name_display = os.path.basename(file.get('path', '')) if os.path.splitext(os.path.basename(file.get('path', '')))[0] == file['name'] else f"{os.path.basename(file.get('path', ''))} ({file['name']})"
-        ui.draw_text((10, 8), f"☆ {name_display}", font=20, color=self.colors['text'])
+        top_text = os.path.basename(file.get('path', ''))
+        ui.draw_text((10, 8), f"☆ {top_text}", font=20, color=self.colors['text'])
+        game_files = [item for item in self.current_items if not item.get('is_dir', False)]
+        total_games = len(game_files)
+        try:
+            current_index = next(i for i, item in enumerate(game_files) if item['path'] == file['path'])
+            order_text = f"{current_index+1}/{total_games}"
+        except StopIteration:
+            order_text = ""
+        if order_text:
+            ui.draw_rectangle_r([self.screen_width-100, 0, self.screen_width, 35], radius=0, fill=self.colors['bg_list'])
+            ui.draw_text((self.screen_width - 10, 18), order_text, font=20, color=self.colors['text_secondary'], anchor="rm")
 
         split_x = self.screen_width // 2
         left_margin = 15
@@ -748,31 +896,42 @@ class LocalUI:
 
         right_x = split_x + 5
         right_width = self.screen_width - right_x - right_margin
-        right_y = 45
-        right_height = self.screen_height - 60 - 45
+        right_y = 90
+        right_height = self.screen_height - 60 - right_y
 
         left_x = left_margin
         y = 50
         lines = [
+            (self.lang.translate("Game name: {name}").format(name=file.get('name', 'Unknown')), self.colors['text_secondary']),
+            (self.lang.translate("Path: {path}").format(path=f"/Roms/{os.path.dirname(file.get('path', ''))}"), self.colors['text_dim']),
             (self.lang.translate("Platform: {platform}").format(platform=file.get('console', 'Unknown')), self.colors['text_secondary']),
             (self.lang.translate("Size: {size:.2f} MB").format(size=file.get('size', 0)/(1024*1024)), self.colors['text_secondary']),
             (self.lang.translate("Preview: {status}").format(
                 status=self.lang.translate("Yes") if file.get('preview') else self.lang.translate("No")),
-            self.colors['success'] if file.get('preview') else self.colors['danger']),
-            (self.lang.translate("Guide: {status}").format(
-                status=self.lang.translate("Yes") if file.get('guide_exists', False) else self.lang.translate("No")),
-            self.colors['success'] if file.get('guide_exists', False) else self.colors['danger']),
-            (self.lang.translate("Path: {path}").format(path=f"/Roms/{os.path.dirname(file.get('path', ''))}"), self.colors['text_dim'])
+            self.colors['success'] if file.get('preview') else self.colors['danger'])
         ]
+
+        guide_files = file.get('guide_files', []) if file.get('guide_exists', False) else []
+        if guide_files:
+            lines.append(
+                (self.lang.translate("Guide: {status}").format(status=guide_files[0]), self.colors['success'])
+            )
+            for gf in guide_files[1:]:
+                lines.append((f"      {gf}", self.colors['success']))
+        else:
+            lines.append(
+                (self.lang.translate("Guide: {status}").format(status=self.lang.translate("No")), self.colors['danger'])
+            )
+
         for label, color in lines:
             ui.draw_text((left_x, y), label, font=18, color=color)
             y += 28
 
         ui.draw_rectangle_r([10, self.screen_height - 40, self.screen_width - 10, self.screen_height - 10],
                             radius=8, fill=self.colors['bg_list'])
-        hint = self.lang.translate("A: Menu  B: Back")
+        hint = self.lang.translate("Start: Menu  B: Back")
         ui.draw_text((self.screen_width // 2, self.screen_height - 24), hint,
-                    font=18, color=self.colors['text_dim'], anchor="mm")
+                    font=20, color=self.colors['text_dim'], anchor="mm")
 
         ui.draw_rectangle_r([right_x, right_y, right_x + right_width, right_y + right_height],
                         radius=8, fill='#2a2a3e', outline=self.colors['border'])
@@ -796,7 +955,7 @@ class LocalUI:
 
                 if img.mode != 'RGBA':
                     img = img.convert('RGBA')
-                ui.active_image.paste(img, (paste_x, paste_y), img if img.mode == 'RGBA' else None)
+                ui.active_image.paste(img, (paste_x, paste_y), mask=img)
             except Exception as e:
                 print(f"Failed to load preview: {e}")
                 ui.draw_text((right_x + right_width//2, right_y + right_height//2),
@@ -816,30 +975,54 @@ class LocalUI:
         if self.current_file:
             file = self.current_file
             ui.draw_rectangle_r([0, 0, self.screen_width, 35], radius=0, fill=self.colors['bg_list'])
-            name_display = os.path.basename(file.get('path', '')) if os.path.splitext(os.path.basename(file.get('path', '')))[0] == file['name'] else f"{os.path.basename(file.get('path', ''))} ({file['name']})"
-            ui.draw_text((10, 8), f"☆ {name_display}", font=20, color=self.colors['text'])
-
+            top_text = os.path.basename(file.get('path', ''))
+            if len(top_text) > 30:
+                top_text = top_text[:27] + "..."
+            ui.draw_text((10, 8), f"☆ {top_text}", font=20, color=self.colors['text'])
+            game_files = [item for item in self.current_items if not item.get('is_dir', False)]
+            total_games = len(game_files)
+            try:
+                current_index = next(i for i, item in enumerate(game_files) if item['path'] == file['path'])
+                order_text = f"{current_index+1}/{total_games}"
+            except StopIteration:
+                order_text = ""
+            if order_text:
+                ui.draw_rectangle_r([self.screen_width-100, 0, self.screen_width, 35], radius=0, fill=self.colors['bg_list'])
+                ui.draw_text((self.screen_width - 10, 18), order_text, font=20, color=self.colors['text_secondary'], anchor="rm")
+    
+            left_x = 15
             y = 50
             lines = [
+                (self.lang.translate("Game name: {name}").format(name=file.get('name', 'Unknown')), self.colors['text_secondary']),
+                (self.lang.translate("Path: {path}").format(path=f"/Roms/{os.path.dirname(file.get('path', ''))}"), self.colors['text_dim']),
                 (self.lang.translate("Platform: {platform}").format(platform=file.get('console', 'Unknown')), self.colors['text_secondary']),
                 (self.lang.translate("Size: {size:.2f} MB").format(size=file.get('size', 0)/(1024*1024)), self.colors['text_secondary']),
                 (self.lang.translate("Preview: {status}").format(
                     status=self.lang.translate("Yes") if file.get('preview') else self.lang.translate("No")),
-                 self.colors['success'] if file.get('preview') else self.colors['danger']),
-                (self.lang.translate("Guide: {status}").format(
-                    status=self.lang.translate("Yes") if file.get('guide_exists', False) else self.lang.translate("No")),
-                 self.colors['success'] if file.get('guide_exists', False) else self.colors['danger']),
-                (self.lang.translate("Path: {path}").format(path=f"/Roms/{os.path.dirname(file.get('path', ''))}"), self.colors['text_dim'])
+                self.colors['success'] if file.get('preview') else self.colors['danger'])
             ]
-            for label, color in lines:
-                ui.draw_text((15, y), label, font=18, color=color)
-                y += 28
 
+            guide_files = file.get('guide_files', []) if file.get('guide_exists', False) else []
+            if guide_files:
+                lines.append(
+                    (self.lang.translate("Guide: {status}").format(status=guide_files[0]), self.colors['success'])
+                )
+                for gf in guide_files[1:]:
+                    lines.append((f"      {gf}", self.colors['success']))
+            else:
+                lines.append(
+                    (self.lang.translate("Guide: {status}").format(status=self.lang.translate("No")), self.colors['danger'])
+                )
+
+            for label, color in lines:
+                ui.draw_text((left_x, y), label, font=18, color=color)
+                y += 28
+    
             ui.draw_rectangle_r([10, self.screen_height - 40, self.screen_width - 10, self.screen_height - 10],
                                 radius=8, fill=self.colors['bg_list'])
-            hint = self.lang.translate("A: Menu  B: Back")
+            hint = self.lang.translate("Start: Menu  B: Back")
             ui.draw_text((self.screen_width // 2, self.screen_height - 24), hint,
-                         font=18, color=self.colors['text_dim'], anchor="mm")
+                         font=20, color=self.colors['text_dim'], anchor="mm")
 
         ui.draw_rectangle_r([50, 50, self.screen_width - 50, self.screen_height - 50],
                             radius=12, fill='#1a1a2e', outline=self.colors['border'])

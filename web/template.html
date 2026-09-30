@@ -342,7 +342,7 @@
             <button id="update-preview-btn" class="btn btn" onclick="selectPreviewFile()">{{ _('Upload preview') }}</button>
             <input type="file" id="update-preview-input" accept="image/*" style="display:none;" onchange="updatePreview()">
             <button id="upload-guide-btn" class="btn btn" onclick="selectGuideFile()">{{ _('Upload guide') }}</button>
-            <input type="file" id="guide-input" accept=".txt" style="display:none;" onchange="uploadGuide()">
+            <input type="file" id="guide-input" accept="{{ allowed_guide_ext|join(',') }}" style="display:none;" onchange="uploadGuide()">
             <button id="rename-game-input" class="btn btn" onclick="renameCurrent()">{{ _('Rename game') }}</button>
             <button id="delete-preview-btn" class="btn btn-danger" onclick="deletePreview()">{{ _('Delete preview') }}</button>
             <button id="delete-guide-btn" class="btn btn-danger" onclick="deleteGuide()">{{ _('Delete guide') }}</button>
@@ -513,9 +513,10 @@ var lang = {
     restore_save_confirm: {{ _('This will overwrite all current save data. Continue?')|tojson }},
     restore_save_success: {{ _('Restore completed successfully')|tojson }},
     restore_save_failed: {{ _('Restore failed: {error}')|tojson }},
-    please_select_txt: {{ _('Please select a .txt file')|tojson }},
+    please_select_guide: {{ _('Please select a supported guide file')|tojson }},
     guide_overwrite_confirm: {{ _('Guide file already exists, overwrite?')|tojson }},
     guide_upload_success: {{ _('Guide uploaded successfully')|tojson }},
+    unsupported_guide_format: {{ _('Unsupported guide format')|tojson }},
     upload_guide_failed: {{ _('Upload guide failed: {error}')|tojson }},
     rename_game: {{ _('Rename game')|tojson }},
     rename_prompt: {{ _('Enter new name (without extension):')|tojson }},
@@ -564,9 +565,12 @@ var lang = {
     preparing_upload: {{ _('Preparing to upload {count} files...')|tojson }},
     upload_complete: {{ _('Upload completed!')|tojson }},
     parse_error: {{ _('Failed to parse response')|tojson }},
+    rename_completed: {{ _('Rename completed! Success: {success}, Failed: {failed}, Skipped: {skipped}')|tojson }},
+    please_enter_valid_number: {{ _('Please enter a valid number')|tojson }},
     by: {{ _('By')|tojson }}
 };
 
+var ALLOWED_GUIDE_EXT = {{ allowed_guide_ext|tojson }};
 var currentLang = '{{ lang }}';
 var version = '{{ ver }}';
 var systems = {{ systems|tojson }};
@@ -1005,13 +1009,20 @@ function selectFile(file) {
 
     var detail = document.getElementById('detail-content');
     detail.innerHTML = '';
+
+    var guideValue = '{{ _("No") }}';
+    if (file.guide_exists) {
+        var gNames = file.guide_files || [];
+        guideValue = gNames.length > 0 ? gNames.join(' & ') : '{{ _("Yes") }}';
+    }
+
     var lines = [
         { label: '', value: file.name, strong: true },
         { label: '{{ _("Platform: ") }}', value: file.console },
         { label: '{{ _("Size: ") }}', value: (file.size / (1024*1024)).toFixed(2) + ' MB' },
         { label: '{{ _("Modified: ") }}', value: new Date(file.modified * 1000).toLocaleString() },
         { label: '{{ _("Path: ") }}', value: file.path },
-        { label: '{{ _("Guide: ") }}', value: file.guide_exists ? '{{ _("Yes") }}' : '{{ _("No") }}' }
+        { label: '{{ _("Guide: ") }}', value: guideValue }
     ];
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
@@ -1025,8 +1036,8 @@ function selectFile(file) {
             div.textContent = line.label + line.value;
         }
         detail.appendChild(div);
-    updateSelectGameState()
     }
+    updateSelectGameState()
 }
 
 function clearDetail() {
@@ -1469,13 +1480,23 @@ function uploadGuide() {
         fileInput.value = '';
         return;
     }
-    if (!file.name.toLowerCase().endsWith('.txt')) {
-        alert(lang.please_select_txt || 'Please select a .txt file');
+    var fileName = file.name.toLowerCase();
+    var matchedExt = null;
+    for (var i = 0; i < ALLOWED_GUIDE_EXT.length; i++) {
+        if (fileName.endsWith(ALLOWED_GUIDE_EXT[i])) {
+            matchedExt = ALLOWED_GUIDE_EXT[i];
+            break;
+        }
+    }
+    if (!matchedExt) {
+        var extList = ALLOWED_GUIDE_EXT.join(', ');
+        alert((lang.please_select_guide || 'Please select a supported guide file') + ' (' + extList + ')');
         fileInput.value = '';
         return;
     }
 
-    if (currentFile.guide_exists) {
+    var existingExts = currentFile.guide_exts || [];
+    if (existingExts.indexOf(matchedExt) !== -1) {
         if (!confirm(lang.guide_overwrite_confirm || 'Guide file already exists, overwrite?')) {
             fileInput.value = '';
             return;

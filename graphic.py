@@ -350,7 +350,10 @@ class UserInterface:
         img.thumbnail((target_width, target_height))
         paste_x = target_x + (target_width - img.width) // 2
         paste_y = target_y + (target_height - img.height) // 2
-        self.active_Image.paste(img, (paste_x, paste_y))
+        if img.mode == 'RGBA':
+            self.active_image.paste(img, (paste_x, paste_y), mask=img)
+        else:
+            self.active_image.paste(img, (paste_x, paste_y))
         self.draw_paint()
 
     def save_screenshot(self, filename=None):

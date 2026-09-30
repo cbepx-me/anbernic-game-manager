@@ -22,9 +22,8 @@ from flask import Flask, request, jsonify, send_file, render_template_string
 import pypinyin
 from pypinyin import Style
 import xml.etree.ElementTree as ET
-import shutil
 
-from main import hw_info
+from main import hw_info, board_info
 from scraper import Scraper, Rom
 from systems import systems, get_system_id
 from anbernic import Anbernic
@@ -32,9 +31,10 @@ from language import Translator
 from name_converter import name_converter
 import input
 
-ver = "1.2.2"
+ver = "1.2.5"
 
-board_info = "Unknown"
+if not board_info:
+    board_info = "Unknown"
 system_version = "Unknown"
 
 try:
@@ -73,6 +73,8 @@ app.config['MAX_FORM_PARTS'] = 10000
 
 ALLOWED_IMAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
 PREVIEW_DIR_NAME = "Imgs"
+
+ALLOWED_GUIDE_EXT = ['.txt', '.epub']  # '.pdf', '.md', '.html'
 
 device = Anbernic()
 translator = Translator(system_lang)
@@ -115,6 +117,43 @@ BACKUP_PATHS = [
     "/mnt/vendor/deep/retro/system/dc/vmu_save_D1.bin"
 ]
 
+_dir_cache = {}   # key: (target_dir, dir_mtime) -> value: items列表
+_subdirs_cache = {}
+
+from brightness import brightness, MAX_LEVEL
+
+def get_brightness():
+    try:
+        r = subprocess.run([BRIGHT_BIN, 'get'], capture_output=True, text=True, timeout=2)
+        v = int(r.stdout.strip())
+        return max(0, min(7, v))
+    except Exception as e:
+        print(f"[Brightness] get failed: {e}")
+        return 7     # 读失败时假设最亮，避免误把屏幕调到黑
+
+def set_brightness(value):
+    """设置背光亮度（0-7），硬件生效"""
+    try:
+        value = max(0, min(7, int(value)))
+        subprocess.run([BRIGHT_BIN, str(value)],
+                       capture_output=True, timeout=2)
+    except Exception as e:
+        print(f"[Brightness] set {value} failed: {e}")
+
+def restore_brightness_if_needed():
+    """如果屏幕当前处于"已调暗"状态，恢复原始亮度。
+    返回 True 表示这次真的做了恢复；False 表示无需恢复或已恢复过。"""
+    global _orig_brightness, _brightness_restored
+    if _orig_brightness is None or _brightness_restored:
+        return False
+    try:
+        set_brightness(_orig_brightness)
+        _brightness_restored = True
+        print(f"[AutoDim] 检测到按键，恢复亮度 {_orig_brightness}")
+        return True
+    except Exception as e:
+        print(f"[AutoDim] restore failed: {e}")
+        return False
 
 def is_connected() -> bool:
     test_servers = [
@@ -151,7 +190,7 @@ def show_splash_screen(ip):
         print("[DEBUG] UI instance created")
         ui.draw_clear()
 
-        box_width = 620
+        box_width = 560
         box_height = 430
         box_x = (ui.screen_width - box_width) // 2
         box_y = (ui.screen_height - box_height) // 2
@@ -203,17 +242,51 @@ def show_splash_screen(ip):
 
         ui.draw_paint()
         print("[DEBUG] splash screen finished")
+
+        # ==================== 延时自动调光 ====================
+        DIM_DELAY  = 15      # 显示多少秒后开始调暗
+        DIM_TARGET = 0       # 目标亮度（0-7）
+
+        def _auto_dim_loop():
+            while True:
+                time.sleep(DIM_DELAY)
+
+                # 如果当前已经是暗态（用户没按键），跳过这一轮
+                if not brightness.is_restored:
+                    continue
+
+                try:
+                    orig_level = brightness.begin_dim()
+                    print(f"[AutoDim] 原始等级 {orig_level}，降到 {DIM_TARGET}")
+
+                    if orig_level > DIM_TARGET:
+                        for lv in range(orig_level - 1, DIM_TARGET - 1, -1):
+                            if brightness.is_restored:
+                                # 用户按了键，中止本轮回暗
+                                print("[AutoDim] 检测到按键，放弃本轮回暗")
+                                break
+                            brightness.set_level(lv)
+                            time.sleep(0.15)
+
+                    if not brightness.is_restored:
+                        print(f"[AutoDim] 已调暗到等级 {DIM_TARGET}，按任意键可恢复")
+                except Exception as e:
+                    print(f"[AutoDim] error: {e}")
+
+        threading.Thread(target=_auto_dim_loop, daemon=True).start()
     except Exception as e:
         print(f"屏幕显示异常: {e}")
         import traceback
         traceback.print_exc()
+
+
 
 def show_error_screen():
     try:
         from graphic import UserInterface
         ui = UserInterface()
         ui.draw_clear()
-        box_width = 600
+        box_width = 560
         box_height = 260
         box_x = (ui.screen_width - box_width) // 2
         box_y = (ui.screen_height - box_height) // 2 - 20
@@ -280,15 +353,32 @@ def get_preview_path(game_full_path):
     return None
 
 def get_guide_path(game_full_path):
+    """返回该游戏的首选攻略文件路径（按 ALLOWED_GUIDE_EXT 优先级），不存在返回 None"""
     guide_dir = os.path.dirname(game_full_path)
     game_basename = os.path.basename(game_full_path)
     name_without_ext = os.path.splitext(game_basename)[0]
     if not os.path.isdir(guide_dir):
         return None
-    candidate = os.path.join(guide_dir, name_without_ext + '.txt')
-    if os.path.exists(candidate):
-        return candidate
+    for ext in ALLOWED_GUIDE_EXT:
+        candidate = os.path.join(guide_dir, name_without_ext + ext)
+        if os.path.exists(candidate):
+            return candidate
     return None
+
+
+def get_all_guide_paths(game_full_path):
+    """返回该游戏所有已存在的攻略文件路径（用于删除等批量操作）"""
+    guide_dir = os.path.dirname(game_full_path)
+    game_basename = os.path.basename(game_full_path)
+    name_without_ext = os.path.splitext(game_basename)[0]
+    if not os.path.isdir(guide_dir):
+        return []
+    result = []
+    for ext in ALLOWED_GUIDE_EXT:
+        candidate = os.path.join(guide_dir, name_without_ext + ext)
+        if os.path.exists(candidate):
+            result.append(candidate)
+    return result
 
 def detect_system_from_ext(filename):
     ext = os.path.splitext(filename)[1].lower().lstrip('.')
@@ -299,6 +389,14 @@ def get_subdirs(sd=None):
     if not os.path.isdir(rom_root):
         print(f"[DEBUG] ROM root {rom_root} is not a directory")
         return []
+    try:
+        _mt = os.stat(rom_root).st_mtime
+    except OSError:
+        return []
+    cache_key = (rom_root, _mt)
+    if cache_key in _subdirs_cache:
+        return _subdirs_cache[cache_key]
+    
     dirs = []
     for item in os.listdir(rom_root):
         if item in ["APPS", "PORTS", "EASYRPG", "ONS"]:
@@ -316,107 +414,218 @@ def get_subdirs(sd=None):
             })
     dirs.sort(key=lambda x: x['name'].lower())
     print(f"[DEBUG] get_subdirs found {len(dirs)} directories")
+    _subdirs_cache[cache_key] = dirs
     return dirs
 
 def count_games_in_directory(dir_path, check_preview=True, recursive=True):
     game_count = 0
     preview_count = 0
+
     if recursive:
+        # 递归模式：保持原逻辑（用在 get_subdirs，首次启动时）
         for root, _, files in os.walk(dir_path):
             if PREVIEW_DIR_NAME in root.split(os.sep):
                 continue
             for f in files:
                 if f.startswith('.'):
                     continue
-                if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
+                dot = f.rfind('.')
+                ext_no_dot = f[dot+1:].lower() if dot >= 0 else ''
+                if EXT_TO_SYSTEM.get(ext_no_dot, "Unknown") != "Unknown" or ext_no_dot == 'zip':
                     game_count += 1
-                    game_path = os.path.join(root, f)
                     if check_preview:
+                        game_path = os.path.join(root, f)
                         if get_preview_path(game_path) is not None:
                             preview_count += 1
-    else:
-        try:
-            for f in os.listdir(dir_path):
-                full_path = os.path.join(dir_path, f)
-                if os.path.isfile(full_path) and not f.startswith('.'):
-                    if detect_system_from_ext(f) != "Unknown" or f.endswith('.zip'):
-                        game_count += 1
-                        if check_preview:
-                            if get_preview_path(full_path) is not None:
-                                preview_count += 1
-        except OSError:
-            pass
+        return game_count, preview_count
+
+    # ============ 非递归模式：优化版 ============
+    try:
+        entries = list(os.scandir(dir_path))
+    except OSError:
+        return 0, 0
+
+    # 一次性扫预览目录
+    preview_set = set()
+    if check_preview:
+        preview_dir = os.path.join(dir_path, PREVIEW_DIR_NAME)
+        if os.path.isdir(preview_dir):
+            try:
+                for e in os.scandir(preview_dir):
+                    preview_set.add(e.name.lower())
+            except OSError:
+                pass
+
+    for entry in entries:
+        name = entry.name
+        if name.startswith('.'):
+            continue
+        # is_file() 用的是缓存，不产生 syscall
+        if not entry.is_file():
+            continue
+
+        dot = name.rfind('.')
+        ext_no_dot = name[dot+1:].lower() if dot >= 0 else ''
+        if EXT_TO_SYSTEM.get(ext_no_dot, "Unknown") == "Unknown" and ext_no_dot != 'zip':
+            continue
+
+        game_count += 1
+
+        if check_preview and preview_set:
+            name_without_ext = name[:dot] if dot >= 0 else name
+            for pext in ALLOWED_IMAGE_EXT:
+                if (name_without_ext + pext).lower() in preview_set:
+                    preview_count += 1
+                    break
+
     return game_count, preview_count
 
-def get_files_in_dir(subdir, lang=None):
+from functools import lru_cache
+
+@lru_cache(maxsize=8192)
+def _pinyin_first_letter(name):
+    try:
+        pinyin_list = pypinyin.pinyin(name, style=Style.FIRST_LETTER)
+        return ''.join([p[0] for p in pinyin_list]).lower()
+    except Exception as e:
+        print(f"[WARN] Pinyin failed for {name}: {e}")
+        return ''
+
+def get_files_in_dir(subdir, lang=None, need_pinyin=True):
     if subdir in ["APPS", "PORTS", "EASYRPG", "ONS"] or subdir.startswith("APPS/") or subdir.startswith("PORTS/") or subdir.startswith("EASYRPG/") or subdir.startswith("ONS/"):
         return []
     rom_root = get_rom_root()
     target_dir = os.path.join(rom_root, subdir)
+    try:
+        _mt = os.stat(target_dir).st_mtime
+    except OSError:
+        return []
+    _cache_key = (target_dir, _mt, need_pinyin, lang)
+    if _cache_key in _dir_cache:
+        # print(f"[CACHE HIT] {subdir}")
+        return _dir_cache[_cache_key]
+
+    # 预先算好 rom_root + '/'，用于快速切相对路径
+    _root_prefix = rom_root if rom_root.endswith('/') else rom_root + '/'
+    _dir_prefix = target_dir if target_dir.endswith('/') else target_dir + '/'
     if not os.path.isdir(target_dir):
         return []
+    # ============ 一次性扫描目录 ============
+    try:
+        all_entries = list(os.scandir(target_dir))
+    except OSError:
+        return []
+
+    # 建立 name.lower() → DirEntry 映射（用于查攻略）
+    entry_map = {}
+    for e in all_entries:
+        entry_map[e.name.lower()] = e
+
+    # 一次性扫预览目录：小写名 → 实际文件名
+    preview_dir = os.path.join(target_dir, PREVIEW_DIR_NAME)
+    preview_map = {}
+    if os.path.isdir(preview_dir):
+        try:
+            for e in os.scandir(preview_dir):
+                preview_map[e.name.lower()] = e.name
+        except OSError:
+            pass
+
     top_dir = subdir.split('/')[0] if subdir else ''
     items = []
-    for item in os.listdir(target_dir):
-        full_path = os.path.join(target_dir, item)
-        rel_path = os.path.relpath(full_path, rom_root)
-        if os.path.isdir(full_path):
-            if item == PREVIEW_DIR_NAME:
+
+    for entry in all_entries:
+        name = entry.name
+        if name.startswith('.'):
+            continue
+
+        if entry.is_dir():
+            if name == PREVIEW_DIR_NAME:
                 continue
-            sub_game_count, sub_preview_count = count_games_in_directory(full_path, check_preview=True, recursive=False)
+            sub_game_count, sub_preview_count = count_games_in_directory(
+                entry.path, check_preview=True, recursive=False)
             items.append({
-                'name': item,
-                'path': rel_path,
+                'name': name,
+                'path': entry.path[len(_root_prefix):],
                 'is_dir': True,
                 'size': 0,
                 'console': os.path.basename(top_dir) if top_dir else '',
                 'preview': None,
-                'modified': os.path.getmtime(full_path),
+                'modified': entry.stat().st_mtime,
                 'game_count': sub_game_count,
                 'preview_count': sub_preview_count
             })
         else:
-            ext = os.path.splitext(item)[1].lower()
-            if detect_system_from_ext(item) == "Unknown" and ext != '.zip':
+            # 快速判断：整个 name 里最后一个 '.' 之后的部分
+            dot = name.rfind('.')
+            if dot < 0:
+                ext = ''
+            else:
+                ext = name[dot:].lower()
+            
+            # ext 带点，如 '.zip'；用去点后的版本查表
+            ext_no_dot = ext[1:] if ext else ''
+            
+            # 原 detect_system_from_ext 的逻辑
+            system = EXT_TO_SYSTEM.get(ext_no_dot, "Unknown")
+            if system == "Unknown" and ext_no_dot != 'zip':
                 continue
-            size = os.path.getsize(full_path)
-            preview = get_preview_path(full_path)
 
-            name_without_ext = os.path.splitext(item)[0]
+            st = entry.stat()      # 只调一次
+            size = st.st_size
+            name_without_ext = name[:dot] if dot >= 0 else name
+
+            # 预览图：从 preview_map 里 O(1) 查
+            preview = None
+            for pext in ALLOWED_IMAGE_EXT:
+                key = (name_without_ext + pext).lower()
+                if key in preview_map:
+                    preview = preview_dir + '/' + preview_map[key]
+                    break
+
+            # 街机显示名
             display_name = name_without_ext
             if top_dir in ARCADE_SYSTEMS:
                 try:
-                    display_name = name_converter.get_arcade_display_name(name_without_ext, lang)
+                    display_name = name_converter.get_arcade_display_name(
+                        name_without_ext, lang)
                 except Exception as e:
-                    print(f"[ERROR] Arcade conversion failed for {name_without_ext}: {e}")
-                    display_name = name_without_ext
+                    print(f"[ERROR] Arcade conversion failed: {e}")
 
-            pinyin_str = ''
-            try:
-                pinyin_list = pypinyin.pinyin(display_name, style=Style.FIRST_LETTER)
-                pinyin_str = ''.join([p[0] for p in pinyin_list]).lower()
-            except Exception as e:
-                print(f"[WARN] Pinyin conversion failed for {display_name}: {e}")
+            # 拼音
+            if need_pinyin:
+                pinyin_str = _pinyin_first_letter(display_name)
+            else:
+                pinyin_str = ''
 
-            guide_path = os.path.join(os.path.dirname(full_path), name_without_ext + '.txt')
-            guide_exists = os.path.exists(guide_path)
+            # 攻略：从 entry_map 里 O(1) 查
+            guide_paths = []
+            for gext in ALLOWED_GUIDE_EXT:
+                gfn = (name_without_ext + gext).lower()
+                if gfn in entry_map:
+                    guide_paths.append(_dir_prefix + entry_map[gfn].name)
 
             items.append({
                 'name': display_name,
-                'path': rel_path,
+                'path': entry.path[len(_root_prefix):],
                 'is_dir': False,
                 'size': size,
                 'console': os.path.basename(top_dir) if top_dir else 'Unknown',
                 'preview': preview,
-                'modified': os.path.getmtime(full_path),
-                'guide_exists': guide_exists,
+                'modified': st.st_mtime,
+                'guide_exists': bool(guide_paths),
+                'guide_exts': [os.path.splitext(p)[1].lower() for p in guide_paths],
+                'guide_files': [os.path.basename(p) for p in guide_paths],
                 'pinyin': pinyin_str
             })
+
     dirs = [i for i in items if i['is_dir']]
     files = [i for i in items if not i['is_dir']]
     dirs.sort(key=lambda x: x['name'].lower())
     files.sort(key=lambda x: x['name'].lower())
-    return dirs + files
+    result = dirs + files
+    _dir_cache[_cache_key] = result
+    return result
 
 def delete_game(game_rel_path):
     rom_root = get_rom_root()
@@ -427,9 +636,11 @@ def delete_game(game_rel_path):
     preview = get_preview_path(full_path)
     if preview and os.path.exists(preview):
         os.remove(preview)
-    guide = get_guide_path(full_path)
-    if guide and os.path.exists(guide):
-        os.remove(guide)
+    for guide in get_all_guide_paths(full_path):
+        try:
+            os.remove(guide)
+        except OSError:
+            pass
     return True
 
 def get_system_version():
@@ -537,8 +748,6 @@ def scrape_preview_for_path(game_rel_path: str) -> tuple[bool, str]:
     return True, os.path.relpath(preview_path, rom_root)
 
 def batch_rename_files(dir_path: str, operation: str, **kwargs) -> dict:
-    from local_ui import LocalUI
-    ui = LocalUI()
     from app import get_rom_root, get_preview_path, get_files_in_dir, PREVIEW_DIR_NAME
     import os
     import re
@@ -556,37 +765,45 @@ def batch_rename_files(dir_path: str, operation: str, **kwargs) -> dict:
     skipped = 0
     details = []
 
+    def _is_cjk(ch):
+        return ('\u4e00' <= ch <= '\u9fff') or ('\u3400' <= ch <= '\u4dbf')
+
     def get_pinyin(text, first=False):
         text_clean = text.replace(" ", "")
+        if not text_clean:
+            return ''
         if first:
-            return pypinyin.pinyin(text_clean, style=Style.FIRST_LETTER)[0][0].upper()
-        return ''.join([item[0] for item in pypinyin.pinyin(text_clean, style=Style.FIRST_LETTER)]).upper()
+            # 前缀：只看第一个字符
+            ch0 = text_clean[0]
+            if _is_cjk(ch0):
+                p = pypinyin.pinyin(ch0, style=Style.FIRST_LETTER)
+                return p[0][0].upper() if p and p[0] else ''
+            elif ch0.isalnum():
+                return ch0.upper()
+            else:
+                return ''
+        else:
+            # 后缀：与 Web 端 batch_rename 的 add_suffix 完全一致
+            try:
+                from pypinyin import lazy_pinyin
+                pinyin_list = lazy_pinyin(text_clean, style=Style.FIRST_LETTER)
+                return ''.join(p[0].upper() for p in pinyin_list if p and p[0] and p[0].isalpha())
+            except Exception:
+                return ''
 
-    if operation == "add_prefix":
-        prefix_type = kwargs.get('prefix_type', 'numbers')
-        if prefix_type == 'numbers':
-            digits = ui.get_digits("Set digit count", "Digits", 3)
-            if digits == -1:
-                return {'error': translator.translate('Cancelled by user')}
-            start = ui.get_digits("Set start number", "Start from", 1, 5, 0)
-            if start == -1:
-                return {'error': translator.translate('Cancelled by user')}
-        separator = ui.get_char("Set separator", "Separator", [" ", "-", "_", ""])
-        if separator is None:
-            return {'error': translator.translate('Cancelled by user')}
+    # ========== 参数直接从 kwargs 读取，无需 UI 交互 ==========
+    prefix_type = kwargs.get('prefix_type', 'numbers')
+    digits = kwargs.get('digits', 3)
+    start = kwargs.get('start', 0)
+    separator = kwargs.get('separator', ' ')
+    bracket_type = kwargs.get('bracket_type', '()')
+    n = kwargs.get('n', 1)
 
-    if operation == "add_suffix":
-        bracket_type = ui.get_char("Set suffix brackets", "Brackets", ["[...]", "(...)"])
-        if bracket_type is None:
-            return {'error': translator.translate('Cancelled by user')}
-        separator = ui.get_char("Set separator", "Separator", ["", " ", "-", "_"])
-        if separator is None:
-            return {'error': translator.translate('Cancelled by user')}
-
-    if operation == "remove_prefix":
-        n = ui.get_digits("Set number of characters to delete", "Digits", 1, 9)
-        if n == -1:
-            return {'error': translator.translate('Cancelled by user')}
+    gr.draw_clear()
+    gr.draw_log(
+        f"{translator.translate('Renaming...')}", fill=gr.colorBlue, outline=gr.colorBlueD1
+    )
+    gr.draw_paint()
 
     for file_info in files:
         old_rel_path = file_info['path']
@@ -601,7 +818,10 @@ def batch_rename_files(dir_path: str, operation: str, **kwargs) -> dict:
                 prefix = str(start + success).zfill(digits)
             else:
                 prefix = get_pinyin(name_without_ext, first=True)
-            new_name = prefix + separator + new_name
+            if prefix:
+                new_name = prefix + separator + new_name
+            else:
+                new_name = new_name
 
         elif operation == "add_suffix":
             if bracket_type in ['[...]', '(...)']:
@@ -631,7 +851,7 @@ def batch_rename_files(dir_path: str, operation: str, **kwargs) -> dict:
                 continue
 
         elif operation == "remove_suffix":
-            new_name = re.sub(r'[\(\[]([^)]*)[\)\]]$', '', new_name).rstrip()
+            new_name = re.sub(r'[\(\[]([^\]\)]*)[\)\]]$', '', new_name).rstrip()
             if new_name == name_without_ext:
                 skipped += 1
                 details.append({'file': old_basename, 'reason': 'No suffix to remove'})
@@ -694,7 +914,14 @@ def device_info():
 def index():
     lang = request.args.get('lang') or system_lang
     translator = Translator(lang)
-    return render_template_string(HTML_TEMPLATE, _=translator.translate, lang=lang, ver=ver, systems=systems)
+    return render_template_string(
+        HTML_TEMPLATE,
+        _=translator.translate,
+        lang=lang,
+        ver=ver,
+        systems=systems,
+        allowed_guide_ext=ALLOWED_GUIDE_EXT,
+    )
 
 @app.route('/api/sd', methods=['GET', 'POST'])
 def handle_sd():
@@ -832,13 +1059,14 @@ def delete_guide():
     if not os.path.exists(game_full_path):
         return jsonify({'error': 'Game file not found'}), 404
 
-    guide_path = get_guide_path(game_full_path)
-    if not guide_path or not os.path.exists(guide_path):
+    guides = get_all_guide_paths(game_full_path)
+    if not guides:
         return jsonify({'error': 'Guide file not found'}), 404
 
     try:
-        os.remove(guide_path)
-        return jsonify({'success': True})
+        for g in guides:
+            os.remove(g)
+        return jsonify({'success': True, 'deleted': len(guides)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1070,8 +1298,9 @@ def upload_guide():
     if guide_file.filename == '':
         return jsonify({'error': 'Empty filename'}), 400
 
-    if not guide_file.filename.lower().endswith('.txt'):
-        return jsonify({'error': 'Only .txt files are allowed'}), 400
+    ext = os.path.splitext(guide_file.filename)[1].lower()
+    if ext not in ALLOWED_GUIDE_EXT:
+        return jsonify({'error': f'Unsupported guide format: {ext}'}), 400
 
     rom_root = get_rom_root()
     game_full_path = os.path.join(rom_root, game_rel_path)
@@ -1080,7 +1309,13 @@ def upload_guide():
 
     game_dir = os.path.dirname(game_full_path)
     game_basename = os.path.splitext(os.path.basename(game_full_path))[0]
-    guide_path = os.path.join(game_dir, game_basename + '.txt')
+    guide_path = os.path.join(game_dir, game_basename + ext)
+
+    # 同名但不同格式的旧攻略会被保留；同格式则覆盖。若想"只保留一份攻略"，加下面这段：
+    # for other in get_all_guide_paths(game_full_path):
+    #     if other != guide_path:
+    #         try: os.remove(other)
+    #         except OSError: pass
 
     try:
         guide_file.save(guide_path)
@@ -1696,7 +1931,7 @@ def batch_rename():
                 prefix = ''
                 n = start
                 while True:
-                    n, remainder = divmod(n - 1, 26)
+                    n, remainder = divmod(n, 26)
                     prefix = chr(65 + remainder) + prefix
                     if n == 0:
                         break
@@ -1707,9 +1942,21 @@ def batch_rename():
                 start += 1
             elif prefix_type == 'pinyin':
                 try:
-                    from pypinyin import lazy_pinyin, Style
-                    pinyin_list = lazy_pinyin(old_name_without_ext[0], style=Style.FIRST_LETTER)
-                    prefix = ''.join(p[0].upper() for p in pinyin_list if p and p[0].isalpha())
+                    if not old_name_without_ext:
+                        prefix = ''
+                    else:
+                        ch0 = old_name_without_ext[0]
+                        is_cjk = ('\u4e00' <= ch0 <= '\u9fff') or ('\u3400' <= ch0 <= '\u4dbf')
+                        if is_cjk:
+                            from pypinyin import lazy_pinyin, Style
+                            pinyin_list = lazy_pinyin(ch0, style=Style.FIRST_LETTER)
+                            prefix = ''.join(
+                                p[0].upper() for p in pinyin_list if p and p[0].isalpha()
+                            )
+                        elif ch0.isalnum():
+                            prefix = ch0.upper()
+                        else:
+                            prefix = ''
                 except:
                     prefix = old_name_without_ext[0].upper() if old_name_without_ext else ''
             else:
@@ -1725,10 +1972,6 @@ def batch_rename():
                 suffix = ''
             if not suffix:
                 suffix = old_name_without_ext[:3].upper()
-            if separator:
-                new_name_without_ext = old_name_without_ext + separator + suffix
-            else:
-                new_name_without_ext = old_name_without_ext + suffix
             if bracket_type == '()':
                 new_name_without_ext = old_name_without_ext + ' (' + suffix + ')' if separator else old_name_without_ext + '(' + suffix + ')'
             elif bracket_type == '[]':
@@ -1742,7 +1985,7 @@ def batch_rename():
 
         elif operation == 'remove_suffix':
             import re
-            new_name_without_ext = re.sub(r'[\(（\[【][^）\]】]*[\)）\]】]$', '', old_name_without_ext).strip()
+            new_name_without_ext = re.sub(r'[\(（\[【][^）\]】\)]*[\)）\]】]$', '', old_name_without_ext).strip()
 
         if new_name_without_ext == old_name_without_ext:
             skipped_count += 1
@@ -1809,12 +2052,33 @@ else:
     os._exit(0)
 
 def exit_on_key():
-    print("[DEBUG] 按键监听线程已启动，按 SELECT 退出")
+    print("[DEBUG] 按键监听线程已启动，按 SELECT 退出，其它键恢复亮度")
     while True:
         input.check()
+
+        # 1) SELECT -> 恢复亮度并退出
         if input.key("SELECT"):
-            print(f"[DEBUG] 检测到按键: {input.codeName}，正在退出...")
+            print("[DEBUG] 检测到 SELECT，正在退出...")
+            try:
+                brightness.restore_on_exit()
+                time.sleep(0.2)
+            except Exception as e:
+                print(f"[AutoDim] restore on exit failed: {e}")
             os._exit(0)
+
+        # 2) 其它任意键 -> 只恢复亮度，不退出
+        any_key = (
+            input.key("A") or input.key("B") or
+            input.key("DY") or input.key("DX") or
+            input.key("R1") or input.key("L1") or
+            input.key("R2") or input.key("L2") or
+            input.key("Y") or input.key("START") or
+            input.key("X") or input.key("MENUF")
+        )
+        if any_key:
+            brightness.restore_if_needed()
+
+        time.sleep(0.03)   # 稍微降低 CPU 占用
 
 def load_menu() -> int:
 
@@ -1833,7 +2097,7 @@ def load_menu() -> int:
             menu_selected_position = (menu_selected_position + input.value) % len(all_menu)
         elif input.key("A"):
             return menu_selected_position
-        elif input.key("MENUF"):
+        elif input.key("SELECT"):
             gr.draw_clear()
             gr.draw_log(
                 f"{translator.translate('Exiting...')}", fill=gr.colorBlue, outline=gr.colorBlueD1
@@ -1891,7 +2155,7 @@ def load_menu() -> int:
             )
 
         gr.button_circle((30, button_y), "A", f"{translator.translate('Confirm')}")
-        gr.button_circle((button_x, button_y), "M", f"{translator.translate('Exit')}")
+        gr.button_rectangle((button_x, button_y), "SEL", f"{translator.translate('Exit')}")
         gr.draw_paint()
         input.check()
         time.sleep(0.05)
